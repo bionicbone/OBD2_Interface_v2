@@ -1,7 +1,8 @@
 /*
- Name:		OBD2_Interface_v2.ino
- Created:	Sep 2024
- Author:	Kevin Guest AKA TheBionicBone
+ Name:		    OBD2_Interface_v2.ino
+ Description: Designed Specifically for connection to a Land Rover Freelander 2 VIN: >382339 (MY 2015)
+ Created:	    Sep 2024
+ Author:	    Kevin Guest AKA TheBionicBone
 
   THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
@@ -100,8 +101,8 @@ void loop() {
 
   while (numberOfCANFramesReceived[0] < 10000) {
 
-    if (CANBusCheckRecieved(mcp2515_0)) {                               // Checks 500kbps bus as priority over 125kbps
-      if (CANBusReadCANData(mcp2515_0)) {                               // because 500kbps is faster and has more frames per second to catch
+    if (CANBusCheckRecieved(mcp2515_0)) {                             // Checks 500kbps bus as priority over 125kbps
+      if (CANBusReadCANData(mcp2515_0)) {                             // because 500kbps is faster and has more frames per second to catch
         CANFrameProcessing(0);
       }
     }
@@ -156,8 +157,8 @@ void SDCardStart(byte TxPin) {
   sdCardFirstRun = true;
 }
 
-
 // Writes a CAN Frame to the SD Card Device (OpenLager) in SavvyCAN compatible format
+// TODO: Valdate SavvyCAN accepts this
 void SDCardCANFrameSavvyCANOutput(byte whichCANBus) {
   if(sdCardFirstRun){ 
     SD_Port.printf("Time Stamp, ID, Extended, Bus, LEN, D1, D2, D3, D4, D5, D6, D7, D8\n"); 
@@ -208,14 +209,12 @@ void CANBusStart(MCP2515 CANBusModule, CAN_SPEED CANSpeed, byte CANMode) {
   }
 }
 
-
 // Set an MCP2515 CAN controller to Listen Only Mode
 void CANbusSetListenOnlyMode(MCP2515 CANBusModule) {
   while (CANBusModule.setListenOnlyMode() != MCP2515::ERROR_OK) { delay(500); }
   Serial.printf("\nMCP2515 Listen Only Mode Successful\n");
   CANBusResetControlVariables();
 }
-
 
 // Set an MCP2515 CAN controller to Normal Mode
 void CANbusSetNormalMode(MCP2515 CANBusModule) {
@@ -241,6 +240,7 @@ bool CANBusReadCANData(MCP2515 CANBusModule) {
 }
 
 
+// Writes satistics to Serial and SD Card outputs
 void TemporaryOutputResults() {
 
   // Temporary - The results
@@ -264,12 +264,12 @@ void TemporaryOutputResults() {
   //Serial.print("totalReceiveTime = "); Serial.println(totalCANReceiveTime);
 
   uint8_t percentageOfBusCapacity = 0.00;
-  float timeTaken = 0.000000;                                     // define high precision floating point math
-  timeTaken = (((float)totalCANReceiveTime / (float)1000000));       // time taken to read numberOfFramesReceived
-  uint64_t bitsTx = 119 * numberOfCANFramesReceived[0];                 // 119 bits (average based on small sample of FL2 live CAN Data).
-  uint64_t bitRate = bitsTx / timeTaken;                          // bit rate used on the CAN bus
+  float timeTaken = 0.000000;                                         // define high precision floating point math
+  timeTaken = (((float)totalCANReceiveTime / (float)1000000));        // time taken to read numberOfFramesReceived
+  uint64_t bitsTx = 119 * numberOfCANFramesReceived[0];               // 119 bits (average based on small sample of FL2 live CAN Data).
+  uint64_t bitRate = bitsTx / timeTaken;                              // bit rate used on the CAN bus
 
-  percentageOfBusCapacity = ((float)bitRate / 500000) * 100;    // the percentage used of the CAN bus
+  percentageOfBusCapacity = ((float)bitRate / 500000) * 100;          // the percentage used of the CAN bus
 
   //// For DEBUGGING
   //Serial.print("timeTaken = "); Serial.println(timeTaken, 6);
@@ -297,12 +297,12 @@ void TemporaryOutputResults() {
   //Serial.print("totalReceiveTime = "); Serial.println(totalCANReceiveTime);
 
   percentageOfBusCapacity = 0.00;
-  timeTaken = 0.000000;                                     // define high precision floating point math
-  timeTaken = (((float)totalCANReceiveTime / (float)1000000));       // time taken to read numberOfFramesReceived
-  bitsTx = 119 * numberOfCANFramesReceived[1];                 // 119 bits (average based on small sample of FL2 live CAN Data).
-  bitRate = bitsTx / timeTaken;                          // bit rate used on the CAN bus
+  timeTaken = 0.000000;                                               // define high precision floating point math
+  timeTaken = (((float)totalCANReceiveTime / (float)1000000));        // time taken to read numberOfFramesReceived
+  bitsTx = 119 * numberOfCANFramesReceived[1];                        // 119 bits (average based on small sample of FL2 live CAN Data).
+  bitRate = bitsTx / timeTaken;                                       // bit rate used on the CAN bus
 
-  percentageOfBusCapacity = ((float)bitRate / 125000) * 100;    // the percentage used of the CAN bus
+  percentageOfBusCapacity = ((float)bitRate / 125000) * 100;          // the percentage used of the CAN bus
 
   //// For DEBUGGING
   //Serial.print("timeTaken = "); Serial.println(timeTaken, 6);

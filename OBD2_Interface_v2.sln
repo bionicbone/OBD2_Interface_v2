@@ -5,7 +5,17 @@ VisualStudioVersion = 16.0.35130.168
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "OBD2_Interface_v2", "OBD2_Interface_v2.vcxproj", "{C5F80730-F44F-4478-BDAE-6634EFC2CA88}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "SPI-2.0.0", "Libraries\SPI\2.0.0\SPI\SPI-2.0.0.vcxitems", "{D3F5B69C-0D45-4A67-AEA4-1E91D0388694}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "autowp-mcp2515-1.2.1", "Libraries\autowp-mcp2515\1.2.1\autowp-mcp2515\autowp-mcp2515-1.2.1.vcxitems", "{23F85659-32FF-401C-AFDB-F53167C8C6E7}"
+EndProject
 Global
+	GlobalSection(SharedMSBuildProjectFiles) = preSolution
+		Libraries\autowp-mcp2515\1.2.1\autowp-mcp2515\autowp-mcp2515-1.2.1.vcxitems*{23f85659-32ff-401c-afdb-f53167c8c6e7}*SharedItemsImports = 9
+		Libraries\autowp-mcp2515\1.2.1\autowp-mcp2515\autowp-mcp2515-1.2.1.vcxitems*{c5f80730-f44f-4478-bdae-6634efc2ca88}*SharedItemsImports = 4
+		Libraries\SPI\2.0.0\SPI\SPI-2.0.0.vcxitems*{c5f80730-f44f-4478-bdae-6634efc2ca88}*SharedItemsImports = 4
+		Libraries\SPI\2.0.0\SPI\SPI-2.0.0.vcxitems*{d3f5b69c-0d45-4a67-aea4-1e91d0388694}*SharedItemsImports = 9
+	EndGlobalSection
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x86 = Debug|x86
 		Release|x86 = Release|x86

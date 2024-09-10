@@ -10,6 +10,10 @@
 *.userosscache
 *.sln.docstates
 
+## Bionicbone Arduino Environment
+# Visual Micro Folder
+__vm
+
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
 

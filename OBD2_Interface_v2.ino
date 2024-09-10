@@ -42,49 +42,52 @@ const String LIBRARY_NAME = "arduino_mpc2515 (by autowp)";
 #include <HardwareSerial.h>
 
 /*
-ESP32 & two MCP2515 Breakout Board (HW-184) - 8 MHz Crystal
+ESP32-S3 & two MCP2515 Breakout Board (HW-184) - 8 MHz Crystal
 MCP2515_0 for 500kbps CAN Bus
-INT = pin 22
-SCK = pin 18
-SI = pin 23
-SO = pin 19
-CS = pin 17
+SCK = pin 12
+SI = pin 11
+SO = pin 13
+CS = pin 14
 GND = GND
 VCC = 5v
 
 MCP2515_1 for 125kbps CAN Bus
-INT = pin 21
-SCK = pin 18
-SI = pin 23
-SO = pin 19
-CS = pin 16
+SCK = pin 12
+SI = pin 11
+SO = pin 13
+CS = pin 10
 GND = GND
 VCC = 5v
 
-ESP32 OpenLager (SD Card) Connections ("OpenLager" device should not be confused with the slower "OpenLogger") 
-Rx = Pin 26
+ESP32-S3 OpenLager (SD Card) Connections ("OpenLager" device should not be confused with the slower "OpenLogger") 
+Rx = Pin 9
 GND = GND
 VCC = 5v
 
 */
 
+// Constants & ESP32-S3 pin declarations
+const auto          STANDARD_SERIAL_OUTPUT_BAUD = 2000000;            // Must be at least 2,000,000 to keep up with Land Rover Freelander 2 
+const auto          SD_PORT_HARDWARE_SERIAL_NUMBER = 1;
+const auto          SD_CARD_ESP32_S3_TX_PIN = 9;
+const auto          CAN_BUS_0_CS_PIN = 14;
+const auto          CAN_BUS_1_CS_PIN = 10;
+
+
+// Control variables
+bool                sdCardFirstRun = false;                           // Will set to true when SD Card initialises, trigger for SavvyCAN header
+bool                CANBusFirstRun = false;                           // Will set to true when CAN Bus mode changes, trigger for cfps timer to start
+unsigned long       totalCANReceiveTimeTimer = 0;                     // Times how long we have been receiving CAN Frames
+unsigned int        numberOfCANFramesReceived[2] = { 0,0 };           // Counts the number of CAN Frames received
+
+
 // Add MCP2515 Modules
-MCP2515 mcp2515_0(17);    // 500kbps
-MCP2515 mcp2515_1(16);    // 125kbps
+MCP2515 mcp2515_0(CAN_BUS_0_CS_PIN);    // 500kbps
+MCP2515 mcp2515_1(CAN_BUS_1_CS_PIN);    // 125kbps
 struct can_frame frame;
 
 // Add SD Card Serial Port
-HardwareSerial SD_Port(1);
-
-// constants
-const auto STANDARD_SERIAL_OUTPUT_BAUD = 115200;                      // Must be at least 2,000,000 to keep up with Land Rover Freelander 2 
-const auto SD_CARD_ESP32_TX_PIN = 26;
-
-// control variables
-bool sdCardFirstRun = false;                                          // Will set to true when SD Card initialises, trigger for SavvyCAN header
-bool CANBusFirstRun = false;                                          // Will set to true when CAN Bus mode changes, trigger for cfps timer to start
-unsigned long       totalCANReceiveTimeTimer = 0;                     // Times how long we have been receiving CAN Frames
-unsigned int        numberOfCANFramesReceived[2] = { 0,0 };           // Counts the number of CAN Frames received
+HardwareSerial SD_Port(SD_PORT_HARDWARE_SERIAL_NUMBER);
 
 void setup() {
   // Serial needs to be at least 2,000,000 baud otherwise lines will be dropped when outputting CAN lines to the standard serial output display.
@@ -93,7 +96,7 @@ void setup() {
   Serial.printf("\nName: OBD2_Interface_v2\nCreated:	Sep 2024\nAuthor : Kevin Guest AKA TheBionicBone\n");
 
   // Start SD Card
-  SDCardStart(SD_CARD_ESP32_TX_PIN);
+  SDCardStart(SD_CARD_ESP32_S3_TX_PIN);
 
   // Start the two CAN Bus, 500kbps for High Speed and 125kbps for the Medium Speed and both in ListenOnly Mode
   CANBusStart(mcp2515_0, CAN_500KBPS, 1); 
@@ -149,7 +152,7 @@ void CANFrameProcessing(byte whichCANBus) {
 
 // SD Card Functions
 
-// Starts the SD Card Device (OpenLager) @ 2,000,000 baud on ESP32 TxPin
+// Starts the SD Card Device (OpenLager) @ 2,000,000 baud on ESP32-S3 TxPin
 void SDCardStart(byte TxPin) {
   // Due to the writing speed necessary I am using an STM32F411 based "OpenLager" (not to be confused with the slower "OpenLogger") 
   while (!SD_Port) {
@@ -162,10 +165,9 @@ void SDCardStart(byte TxPin) {
 }
 
 // Writes a CAN Frame to the SD Card Device (OpenLager) in SavvyCAN compatible format
-// TODO: Valdate SavvyCAN accepts this
 void SDCardCANFrameSavvyCANOutput(byte whichCANBus) {
   if(sdCardFirstRun){ 
-    SD_Port.printf("Time Stamp, ID, Extended, Bus, LEN, D1, D2, D3, D4, D5, D6, D7, D8\n"); 
+    SD_Port.printf("Time Stamp,ID,Extended,Bus,LEN,D1,D2,D3,D4,D5,D6,D7,D8\n"); 
     sdCardFirstRun = false; 
   }
 

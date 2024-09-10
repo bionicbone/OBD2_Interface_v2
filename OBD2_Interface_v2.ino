@@ -1,6 +1,6 @@
 /*
  Name:		    OBD2_Interface_v2.ino
- Description: Designed Specifically for connection to a Land Rover Freelander 2 VIN: >382339 (MY 2015)
+ Description: Designed Specifically for connection to a Land Rover Freelander 2 VIN: >382339
  Created:	    Sep 2024
  Author:	    Kevin Guest AKA TheBionicBone
 
@@ -43,7 +43,6 @@ const String LIBRARY_NAME = "arduino_mpc2515 (by autowp)";
 
 /*
 ESP32 & two MCP2515 Breakout Board (HW-184) - 8 MHz Crystal
-
 MCP2515_0 for 500kbps CAN Bus
 INT = pin 22
 SCK = pin 18
@@ -59,6 +58,11 @@ SCK = pin 18
 SI = pin 23
 SO = pin 19
 CS = pin 16
+GND = GND
+VCC = 5v
+
+ESP32 OpenLager (SD Card) Connections ("OpenLager" device should not be confused with the slower "OpenLogger") 
+Rx = Pin 26
 GND = GND
 VCC = 5v
 

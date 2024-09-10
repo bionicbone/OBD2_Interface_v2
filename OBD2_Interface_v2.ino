@@ -75,6 +75,10 @@ HardwareSerial SD_Port(1);
 const auto STANDARD_SERIAL_OUTPUT_BAUD = 115200;                      // Must be at least 2,000,000 to keep up with Land Rover Freelander 2 
 const auto SD_CARD_ESP32_TX_PIN = 26;
 
+// control variables
+bool sdCardFirstRun = false;                                          // Will set to true when SD Card initialises, trigger for SavvyCAN header
+
+
 void setup() {
   // Serial needs to be at least 2,000,000 baud otherwise lines will be dropped when outputting CAN lines to the standard serial output display.
   while (!Serial) { Serial.begin(STANDARD_SERIAL_OUTPUT_BAUD); delay(100); }
@@ -132,11 +136,17 @@ void SDCardStart(byte TxPin) {
   }
   delay(1000);                                                        // For start up stability (corruption was noticed if we try to write immediately)
   Serial.printf("\nSD Card writer initialised\n");
+  sdCardFirstRun = true;
 }
 
 
 // Writes a CAN Frame to the SD Card Device (OpenLager) in SavvyCAN compatible format
 void SDCardCANFrameOutput(byte whichCANBus) {
+  if(sdCardFirstRun){ 
+    SD_Port.printf("Time Stamp, ID, Extended, Bus, LEN, D1, D2, D3, D4, D5, D6, D7, D8\n"); 
+    sdCardFirstRun = false; 
+  }
+
   String helperString =
     String(micros()) + "," + String(frame.can_id, HEX) + ",false," + String(whichCANBus) + "," + String(frame.can_dlc) + ","
     + String(frame.data[0], HEX) + "," + String(frame.data[1], HEX) + "," + String(frame.data[2], HEX) + "," + String(frame.data[3], HEX) + ","

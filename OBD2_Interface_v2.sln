@@ -9,12 +9,24 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "SPI-2.0.0", "Libraries\SPI\
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "autowp-mcp2515-1.2.1", "Libraries\autowp-mcp2515\1.2.1\autowp-mcp2515\autowp-mcp2515-1.2.1.vcxitems", "{23F85659-32FF-401C-AFDB-F53167C8C6E7}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "TFT_eSPI-2.5.43", "Libraries\TFT_eSPI\2.5.43\TFT_eSPI\TFT_eSPI-2.5.43.vcxitems", "{FFC92CD3-BA2D-4BF8-8498-E9813601EE5B}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "FS-2.0.0", "Libraries\FS\2.0.0\FS\FS-2.0.0.vcxitems", "{C24E82E9-6C6B-4789-9B06-04D5B69D16E9}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "SPIFFS-2.0.0", "Libraries\SPIFFS\2.0.0\SPIFFS\SPIFFS-2.0.0.vcxitems", "{85B9C761-3768-44E3-9682-9F4B52E70D03}"
+EndProject
 Global
 	GlobalSection(SharedMSBuildProjectFiles) = preSolution
 		Libraries\autowp-mcp2515\1.2.1\autowp-mcp2515\autowp-mcp2515-1.2.1.vcxitems*{23f85659-32ff-401c-afdb-f53167c8c6e7}*SharedItemsImports = 9
+		Libraries\SPIFFS\2.0.0\SPIFFS\SPIFFS-2.0.0.vcxitems*{85b9c761-3768-44e3-9682-9f4b52e70d03}*SharedItemsImports = 9
+		Libraries\FS\2.0.0\FS\FS-2.0.0.vcxitems*{c24e82e9-6c6b-4789-9b06-04d5b69d16e9}*SharedItemsImports = 9
 		Libraries\autowp-mcp2515\1.2.1\autowp-mcp2515\autowp-mcp2515-1.2.1.vcxitems*{c5f80730-f44f-4478-bdae-6634efc2ca88}*SharedItemsImports = 4
+		Libraries\FS\2.0.0\FS\FS-2.0.0.vcxitems*{c5f80730-f44f-4478-bdae-6634efc2ca88}*SharedItemsImports = 4
+		Libraries\SPIFFS\2.0.0\SPIFFS\SPIFFS-2.0.0.vcxitems*{c5f80730-f44f-4478-bdae-6634efc2ca88}*SharedItemsImports = 4
 		Libraries\SPI\2.0.0\SPI\SPI-2.0.0.vcxitems*{c5f80730-f44f-4478-bdae-6634efc2ca88}*SharedItemsImports = 4
+		Libraries\TFT_eSPI\2.5.43\TFT_eSPI\TFT_eSPI-2.5.43.vcxitems*{c5f80730-f44f-4478-bdae-6634efc2ca88}*SharedItemsImports = 4
 		Libraries\SPI\2.0.0\SPI\SPI-2.0.0.vcxitems*{d3f5b69c-0d45-4a67-aea4-1e91d0388694}*SharedItemsImports = 9
+		Libraries\TFT_eSPI\2.5.43\TFT_eSPI\TFT_eSPI-2.5.43.vcxitems*{ffc92cd3-ba2d-4bf8-8498-e9813601ee5b}*SharedItemsImports = 9
 	EndGlobalSection
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x86 = Debug|x86

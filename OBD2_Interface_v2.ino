@@ -15,6 +15,7 @@
   THIS SOFTWARE IS PROVIDED FOR EDUCATIONAL PURPOSES ONLY
 */
 
+// Library: arduino-mcp2515 by autowp information, the follow license should be observed
 /*
   This code uses the MCP2515 CANBUS Library:
   arduino-mcp2515 by autowp
@@ -36,33 +37,100 @@
 #include <mcp2515.h>
 const String LIBRARY_NAME = "arduino_mpc2515 (by autowp)";
 
-// include the arduino-ESP32 core SPI library
+// Library: TFT_ePSI by Bodmer information, the follow license should be observed
+/*
+  Software License Agreement (FreeBSD License)
+
+  Copyright (c) 2023 Bodmer (https://github.com/Bodmer)
+
+  All rights reserved.
+
+  Redistribution and use in source and binary forms, with or without
+  modification, are permitted provided that the following conditions are met:
+
+  1. Redistributions of source code must retain the above copyright notice, this
+     list of conditions and the following disclaimer.
+  2. Redistributions in binary form must reproduce the above copyright notice,
+     this list of conditions and the following disclaimer in the documentation
+     and/or other materials provided with the distribution.
+
+  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+  ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+  WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+  DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+  ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+  (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+  LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+  ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+  SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+  The views and conclusions contained in the software and documentation are those
+  of the authors and should not be interpreted as representing official policies,
+  either expressed or implied, of the FreeBSD Project.
+*/
+/*  For the Display, I am using TFT_eSPI by Bodmer
+    See Setup42_ILI9341_ESP32.h for more information
+    External Setup Required:-
+    * Ensure you are using the Library contained within this project
+    * Key points are:
+    *   User_Setup_Select.h is pointing to Setup42
+    *   Setup42_ILI9341_ESP32.h from this project is being used because this has the correct pins and other requirements like HSPI
+*/
+#include <TFT_eSPI.h>
+#include <FS.h>                                                       // TFT_eSPI requires this arduino-ESP32 core library
+#include <SPIFFS.h>                                                   // TFT_eSPI requires this arduino-ESP32 core library
+#include <vfs_api.h>                                                  // TFT_eSPI requires this arduino-ESP32 core library
+#include <FSImpl.h>                                                   // TFT_eSPI requires this arduino-ESP32 core library
+// TODO  For the OBD2_Interfacce_v2 do I really need to load all the fonts, see Setup42_ILI9341_ESP32.h ?
+TFT_eSPI TFT_Rectangle_ILI9341 = TFT_eSPI();
+
+
+// include the arduino-ESP32 core SPI library which is used for the MCP2515 controllers and the ILI9341 Display
 #include <SPI.h>
 // include the arduino-ESP32 core HardwareSerial library which is used for the SD Card Writer
 #include <HardwareSerial.h>
+//
 
+// Connections to the ESP32-S3 Follow:
 /*
-ESP32-S3 & two MCP2515 Breakout Board (HW-184) - 8 MHz Crystal
-MCP2515_0 for 500kbps CAN Bus
-SCK = pin 12
-SI = pin 11
-SO = pin 13
-CS = pin 14
-GND = GND
-VCC = 5v
+  ESP32-S3 & two MCP2515 Breakout Board (HW-184) - 8 MHz Crystal
+  MCP2515_0 for 500kbps CAN Bus
+  SCK = pin 12
+  SI = pin 11
+  SO = pin 13
+  CS = pin 14
+  GND = GND
+  VCC = 5v
 
-MCP2515_1 for 125kbps CAN Bus
-SCK = pin 12
-SI = pin 11
-SO = pin 13
-CS = pin 10
-GND = GND
-VCC = 5v
+  MCP2515_1 for 125kbps CAN Bus
+  SCK = pin 12
+  SI = pin 11
+  SO = pin 13
+  CS = pin 10
+  GND = GND
+  VCC = 5v
 
-ESP32-S3 OpenLager (SD Card) Connections ("OpenLager" device should not be confused with the slower "OpenLogger") 
-Rx = Pin 9
-GND = GND
-VCC = 5v
+  ESP32-S3 OpenLager (SD Card) Connections ("OpenLager" device should not be confused with the slower "OpenLogger") 
+  Rx = Pin 9
+  GND = GND
+  VCC = 5v
+
+  ESP32-S3 ILI9341 Display (with touch) Connections
+  T_IRQ = 
+  T_DO = 
+  T_DIN = 
+  T_CS = 
+  T_CLK = 
+  MISO = 38
+  LED = 39 (2.5mA)
+  SCK = 40
+  MOSI = 41
+  DC = 42
+  RESET = 2
+  CS = 1
+  GND = GND
+  VCC = 3.3v
 
 */
 
@@ -72,7 +140,8 @@ const auto          SD_PORT_HARDWARE_SERIAL_NUMBER = 1;
 const auto          SD_CARD_ESP32_S3_TX_PIN = 9;
 const auto          CAN_BUS_0_CS_PIN = 14;
 const auto          CAN_BUS_1_CS_PIN = 10;
-
+const auto          TFT_LANDROVERGREEN = 12832;
+const auto          TFT_Rectangle_ILI9341_LEDPIN = 39;
 
 // Control variables
 bool                sdCardFirstRun = false;                           // Will set to true when SD Card initialises, trigger for SavvyCAN header
@@ -101,6 +170,14 @@ void setup() {
   // Start the two CAN Bus, 500kbps for High Speed and 125kbps for the Medium Speed and both in ListenOnly Mode
   CANBusStart(mcp2515_0, CAN_500KBPS, 1); 
   CANBusStart(mcp2515_1, CAN_125KBPS, 1);
+
+  // TFT_eSPI runs on HSPI bus, See Setup42_ILI9341_ESP32.h for more information
+  TFT_Rectangle_ILI9341.init();
+  TFT_Rectangle_ILI9341.setRotation(3);
+  TFT_Rectangle_ILI9341.fillScreen(TFT_LANDROVERGREEN);
+  TFT_Rectangle_ILI9341.setTextColor(TFT_WHITE, TFT_LANDROVERGREEN, true);
+  pinMode(TFT_Rectangle_ILI9341_LEDPIN, OUTPUT);
+  digitalWrite(TFT_Rectangle_ILI9341_LEDPIN, HIGH);
 }
 
 
@@ -261,6 +338,11 @@ void TemporaryOutputResults() {
   SD_Port.printf("numberOfFramesReceived = %d\n", numberOfCANFramesReceived[0]);
   SD_Port.printf("Frames per Second = %.2f fps\n", (float)numberOfCANFramesReceived[0] / totalCANReceiveTime * 1000000);
 
+  TFT_Rectangle_ILI9341.printf("Total Time = %d us\n", totalCANReceiveTime);
+  TFT_Rectangle_ILI9341.printf("500kbps Bus\n");
+  TFT_Rectangle_ILI9341.printf("numberOfFramesReceived = %d\n", numberOfCANFramesReceived[0]);
+  TFT_Rectangle_ILI9341.printf("Frames per Second = %.2f fps\n", (float)numberOfCANFramesReceived[0] / totalCANReceiveTime * 1000000);
+
   // Calculate CAN Bus Capacity Used
 
   //// For DEBUGGING
@@ -286,6 +368,8 @@ void TemporaryOutputResults() {
 
   SD_Port.printf("Capacity used %d%% (limited accuracy)\n", percentageOfBusCapacity);
 
+  TFT_Rectangle_ILI9341.printf("Capacity used %d%% (limited accuracy)\n", percentageOfBusCapacity);
+
   Serial.printf("125kbps Bus\n");
   Serial.printf("numberOfFramesReceived = %d\n", numberOfCANFramesReceived[1]);
   Serial.printf("Frames per Second = %.2f fps\n", (float)numberOfCANFramesReceived[1] / totalCANReceiveTime * 1000000);
@@ -293,6 +377,10 @@ void TemporaryOutputResults() {
   SD_Port.printf("125kbps Bus\n");
   SD_Port.printf("numberOfFramesReceived = %d\n", numberOfCANFramesReceived[1]);
   SD_Port.printf("Frames per Second = %.2f fps\n", (float)numberOfCANFramesReceived[1] / totalCANReceiveTime * 1000000);
+
+  TFT_Rectangle_ILI9341.printf("125kbps Bus\n");
+  TFT_Rectangle_ILI9341.printf("numberOfFramesReceived = %d\n", numberOfCANFramesReceived[1]);
+  TFT_Rectangle_ILI9341.printf("Frames per Second = %.2f fps\n", (float)numberOfCANFramesReceived[1] / totalCANReceiveTime * 1000000);
 
   // Calculate CAN Bus Capacity Used
 
@@ -318,6 +406,8 @@ void TemporaryOutputResults() {
   Serial.printf("Capacity used %d%% (limited accuracy)\n", percentageOfBusCapacity);
 
   SD_Port.printf("Capacity used %d%% (limited accuracy)\n", percentageOfBusCapacity);
+
+  TFT_Rectangle_ILI9341.printf("Capacity used %d%% (limited accuracy)\n", percentageOfBusCapacity);
 
   SD_Port.flush();
   SD_Port.end();

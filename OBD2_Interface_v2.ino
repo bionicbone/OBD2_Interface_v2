@@ -135,12 +135,12 @@ TFT_eSPI TFT_Rectangle_ILI9341 = TFT_eSPI();
 
 // Constants & ESP32-S3 pin declarations
 const auto          STANDARD_SERIAL_OUTPUT_BAUD = 2000000;            // Must be at least 2,000,000 to keep up with Land Rover Freelander 2 
-const auto          SD_PORT_HARDWARE_SERIAL_NUMBER = 1;
-const auto          SD_CARD_ESP32_S3_TX_PIN = 9;
-const auto          CAN_BUS_0_CS_PIN = 14;
-const auto          CAN_BUS_1_CS_PIN = 10;
-const auto          TFT_LANDROVERGREEN = 12832;
-const auto          TFT_Rectangle_ILI9341_LEDPIN = 39;
+const auto          SD_PORT_HARDWARE_SERIAL_NUMBER = 1;               // The OpenLager will be connected to Hardware Serial Port 1
+const auto          SD_CARD_ESP32_S3_TX_PIN = 9;                      // The OpenLager Rx pin will be connected to this ESP32-S3 Tx pin
+const auto          CAN_BUS_0_CS_PIN = 14;                            // The CS pin of the MCP2515 (High Speed CAN Bus 500kbps) will be connected to this ESP32-S3 pin
+const auto          CAN_BUS_1_CS_PIN = 10;                            // The CS pin of the MCP2515 (Medium Speed CAN Bus 125kbps) will be connected to this ESP32-S3 pin
+const auto          TFT_LANDROVERGREEN = 12832;                       // A Land Rover Green RBG colour
+const auto          TFT_Rectangle_ILI9341_LEDPIN = 39;                // The ILI9341 display LED PIN will be connected to this ESP32-S3 pin
 const auto          CALIBRATION_FILE = "/TouchCalData1";              // This is the file name used to store the touch display calibration data, must start with /
 const auto          REPEAT_CALIBRATION = false;                       // Set to true to always calibrate / recalibrate the touch display
 
@@ -152,12 +152,12 @@ unsigned int        numberOfCANFramesReceived[2] = { 0,0 };           // Counts 
 
 
 // Add MCP2515 Modules
-MCP2515 mcp2515_0(CAN_BUS_0_CS_PIN);    // 500kbps
-MCP2515 mcp2515_1(CAN_BUS_1_CS_PIN);    // 125kbps
+MCP2515 mcp2515_0(CAN_BUS_0_CS_PIN);                                  // Create MCP2515 controller for High Speed CAN Bus 500kbps
+MCP2515 mcp2515_1(CAN_BUS_1_CS_PIN);                                  // Create MCP2515 controller for Medium Speed CAN Bus 125kbps
 struct can_frame frame;
 
 // Add SD Card Serial Port
-HardwareSerial SD_Port(SD_PORT_HARDWARE_SERIAL_NUMBER);
+HardwareSerial SD_Port(SD_PORT_HARDWARE_SERIAL_NUMBER);               // Connect OpenLager to Hardware Serial Port specified
 
 void setup() {
   // Serial needs to be at least 2,000,000 baud otherwise lines will be dropped when outputting CAN lines to the standard serial output display.
@@ -191,17 +191,25 @@ void loop() {
 
   while (numberOfCANFramesReceived[0] < 10000) {
 
-    if (CANBusCheckRecieved(mcp2515_0)) {                             // Checks 500kbps bus as priority over 125kbps
-      if (CANBusReadCANData(mcp2515_0)) {                             // because 500kbps is faster and has more frames per second to catch
+    /*
+        For information
+        As part of the MCP2515 CAN Bus Controllers are 3 Rx buffers in each, thus 3 for the 500kbps, and 3 for the 125kbps CAN Bus.
+        500kbps CAN Bus will fill in a minimum period of 666us
+        125kbps CAN bus will fill in a minimum period of 2664us
+    */
+
+    // Check the 500kbps bus as priority over 125kbps because 500kbps is faster and the buffers fill significantly more quickly
+    if (CANBusCheckRecieved(mcp2515_0)) {
+      if (CANBusReadCANData(mcp2515_0)) {
         CANFrameProcessing(0);
       }
     }
+    // only check the 125kbps if there any no 500kbps messages in the MCP2515 buffers
     else if (CANBusCheckRecieved(mcp2515_1)) {
       if (CANBusReadCANData(mcp2515_1)) {
         CANFrameProcessing(1);
       }
     }
-
   }
  
   TemporaryOutputResults();
@@ -423,8 +431,10 @@ void TemporaryOutputResults() {
 
 // Calibrate the touch screen and retrieve the scaling factors, see Setup42_ILI9341_ESP32.h for more touch CS Pin definition
 // To recalibrate set REPEAT_CALIBRATION = true 
-void TFTRectangleILI9341TouchCalibrate()
-{
+void TFTRectangleILI9341TouchCalibrate() {
+  // This calibration code came for the TFT_eSPI library example Keypad_240x320
+  // My thanks to Bodmer for this code, copywrite acknowledged in the header and library folder
+  
   uint16_t calData[5];
   uint8_t calDataOK = 0;
 

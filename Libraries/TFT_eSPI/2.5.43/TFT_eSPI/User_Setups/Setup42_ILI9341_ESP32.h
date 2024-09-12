@@ -32,7 +32,7 @@
 #define USE_HSPI_PORT // Use HSPI because the MCP2515 CAN Controllers are on VSPI
 
 // Optional touch screen chip select
-//#define TOUCH_CS 5 // Chip select pin (T_CS) of touch screen
+#define TOUCH_CS 37 // Chip select pin (T_CS) of touch screen
 
 // TODO  For the OBD2_Interfacce_v2 do I really need to load all these fonts ?
 //#define LOAD_GLCD    // Font 1. Original Adafruit 8 pixel font needs ~1820 bytes in FLASH

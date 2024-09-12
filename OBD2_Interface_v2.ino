@@ -69,7 +69,7 @@ const String LIBRARY_NAME = "arduino_mpc2515 (by autowp)";
   of the authors and should not be interpreted as representing official policies,
   either expressed or implied, of the FreeBSD Project.
 */
-/*  For the Display, I am using TFT_eSPI by Bodmer
+/*  For the Display & Touch, I am using TFT_eSPI by Bodmer
     See Setup42_ILI9341_ESP32.h for more information
     External Setup Required:-
     * Ensure you are using the Library contained within this project
@@ -84,7 +84,6 @@ const String LIBRARY_NAME = "arduino_mpc2515 (by autowp)";
 #include <FSImpl.h>                                                   // TFT_eSPI requires this arduino-ESP32 core library
 // TODO  For the OBD2_Interfacce_v2 do I really need to load all the fonts, see Setup42_ILI9341_ESP32.h ?
 TFT_eSPI TFT_Rectangle_ILI9341 = TFT_eSPI();
-
 
 // include the arduino-ESP32 core SPI library which is used for the MCP2515 controllers and the ILI9341 Display
 #include <SPI.h>
@@ -142,6 +141,8 @@ const auto          CAN_BUS_0_CS_PIN = 14;
 const auto          CAN_BUS_1_CS_PIN = 10;
 const auto          TFT_LANDROVERGREEN = 12832;
 const auto          TFT_Rectangle_ILI9341_LEDPIN = 39;
+const auto          CALIBRATION_FILE = "/TouchCalData1";              // This is the file name used to store the touch display calibration data, must start with /
+const auto          REPEAT_CALIBRATION = false;                       // Set to true to always calibrate / recalibrate the touch display
 
 // Control variables
 bool                sdCardFirstRun = false;                           // Will set to true when SD Card initialises, trigger for SavvyCAN header
@@ -171,13 +172,18 @@ void setup() {
   CANBusStart(mcp2515_0, CAN_500KBPS, 1); 
   CANBusStart(mcp2515_1, CAN_125KBPS, 1);
 
-  // TFT_eSPI runs on HSPI bus, See Setup42_ILI9341_ESP32.h for more information
+  // TFT_eSPI runs on HSPI bus, see Setup42_ILI9341_ESP32.h for pin definitions and more information
   TFT_Rectangle_ILI9341.init();
+  pinMode(TFT_Rectangle_ILI9341_LEDPIN, OUTPUT);
+  digitalWrite(TFT_Rectangle_ILI9341_LEDPIN, HIGH);
+
+  // Calibrate the touch screen and retrieve the scaling factors, see Setup42_ILI9341_ESP32.h for more touch CS Pin definition
+  TFTRectangleILI9341TouchCalibrate();
+
+  // Prepare display after calibration
   TFT_Rectangle_ILI9341.setRotation(3);
   TFT_Rectangle_ILI9341.fillScreen(TFT_LANDROVERGREEN);
   TFT_Rectangle_ILI9341.setTextColor(TFT_WHITE, TFT_LANDROVERGREEN, true);
-  pinMode(TFT_Rectangle_ILI9341_LEDPIN, OUTPUT);
-  digitalWrite(TFT_Rectangle_ILI9341_LEDPIN, HIGH);
 }
 
 
@@ -414,3 +420,73 @@ void TemporaryOutputResults() {
 
   while (true);
 }
+
+// Calibrate the touch screen and retrieve the scaling factors, see Setup42_ILI9341_ESP32.h for more touch CS Pin definition
+// To recalibrate set REPEAT_CALIBRATION = true 
+void TFTRectangleILI9341TouchCalibrate()
+{
+  uint16_t calData[5];
+  uint8_t calDataOK = 0;
+
+  // check file system exists
+  if (!SPIFFS.begin()) {
+    Serial.println("formatting file system");
+    SPIFFS.format();
+    SPIFFS.begin();
+  }
+
+  // check if calibration file exists and size is correct
+  if (SPIFFS.exists(CALIBRATION_FILE)) {
+    if (REPEAT_CALIBRATION)
+    {
+      // Delete if we want to re-calibrate
+      SPIFFS.remove(CALIBRATION_FILE);
+    }
+    else
+    {
+      File f = SPIFFS.open(CALIBRATION_FILE, "r");
+      if (f) {
+        if (f.readBytes((char*)calData, 14) == 14)
+          calDataOK = 1;
+        f.close();
+      }
+    }
+  }
+
+  if (calDataOK && !REPEAT_CALIBRATION) {
+    // calibration data valid
+    TFT_Rectangle_ILI9341.setTouch(calData);
+  }
+  else {
+    // data not valid so recalibrate
+    TFT_Rectangle_ILI9341.fillScreen(TFT_BLACK);
+    TFT_Rectangle_ILI9341.setCursor(20, 0);
+    //TFT_Rectangle_ILI9341.setTextFont(2);
+    //TFT_Rectangle_ILI9341.setTextSize(1);
+    TFT_Rectangle_ILI9341.setTextColor(TFT_WHITE, TFT_BLACK);
+
+    TFT_Rectangle_ILI9341.println("Touch corners as indicated");
+
+    //TFT_Rectangle_ILI9341.setTextFont(1);
+    TFT_Rectangle_ILI9341.println();
+
+    if (REPEAT_CALIBRATION) {
+      TFT_Rectangle_ILI9341.setTextColor(TFT_RED, TFT_BLACK);
+      TFT_Rectangle_ILI9341.println("Set REPEAT_CAL to false to stop this running again!");
+    }
+
+    TFT_Rectangle_ILI9341.calibrateTouch(calData, TFT_MAGENTA, TFT_BLACK, 15);
+
+    TFT_Rectangle_ILI9341.setTextColor(TFT_GREEN, TFT_BLACK);
+    TFT_Rectangle_ILI9341.println("Calibration complete!");
+
+    // store data
+    File f = SPIFFS.open(CALIBRATION_FILE, "w");
+    if (f) {
+      f.write((const unsigned char*)calData, 14);
+      f.close();
+    }
+  }
+}
+
+

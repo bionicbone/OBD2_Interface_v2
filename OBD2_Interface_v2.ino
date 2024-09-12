@@ -116,11 +116,11 @@ TFT_eSPI TFT_Rectangle_ILI9341 = TFT_eSPI();
   VCC = 5v
 
   ESP32-S3 ILI9341 Display (with touch) Connections
-  T_IRQ = 
-  T_DO = 
-  T_DIN = 
-  T_CS = 
-  T_CLK = 
+  T_IRQ = Not Connected
+  T_DO = 38
+  T_DIN = 41
+  T_CS = 37
+  T_CLK = 40
   MISO = 38
   LED = 39 (2.5mA)
   SCK = 40

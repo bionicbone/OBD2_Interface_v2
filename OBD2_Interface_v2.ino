@@ -143,12 +143,76 @@ const auto          TFT_LANDROVERGREEN = 12832;                       // A Land 
 const auto          TFT_Rectangle_ILI9341_LEDPIN = 39;                // The ILI9341 display LED PIN will be connected to this ESP32-S3 pin
 const auto          CALIBRATION_FILE = "/TouchCalData1";              // This is the file name used to store the touch display calibration data, must start with /
 const auto          REPEAT_CALIBRATION = false;                       // Set to true to always calibrate / recalibrate the touch display
+const auto          TOP_MENU_FONT = 2;                                // Font used for selection menu that is at the top of the display
+const auto          TOP_MENU_Y_OFFSET = 10;                           // Used to position the top menu just under the Program Title
+const auto          TOP_MENU_PROGRAM_NAME = "OBD2 Interface by Bionicbone"; // Will be displayed at the top of the display
+const auto          TOP_MENU_PROGRAM_VERSION = "v2.0.0";              // Will be displayed at the top of the display
+const auto          MENU_BOLD_FONT = FreeSansBoldOblique9pt7b;        // Font used for selection menus headers
+const auto          MENU_FONT = FreeSansOblique9pt7b;                 // Font used for selection menus buttons
+const auto          MENU_Y_OFFSET = 68;                               // Used to position the menu just under the Menu Header
 
 // Control variables
 bool                sdCardFirstRun = false;                           // Will set to true when SD Card initialises, trigger for SavvyCAN header
 bool                CANBusFirstRun = false;                           // Will set to true when CAN Bus mode changes, trigger for cfps timer to start
 unsigned long       totalCANReceiveTimeTimer = 0;                     // Times how long we have been receiving CAN Frames
 unsigned int        numberOfCANFramesReceived[2] = { 0,0 };           // Counts the number of CAN Frames received
+byte                menuCurrentlyDisplayed = 0;                       // Tracks the menu displayed
+
+
+
+// Sets the new output requirements
+void actionOutputChange(int arg) {
+  // TODO write the script
+  Serial.print("action: ");
+  Serial.println(arg);
+}
+
+// Allows user to configure the CAN BUS Settings
+void changeCANSettings(int arg) {
+  // TODO write the script
+  // TODO I would like an "Auto Detect CAN Bus Speed" function, but first be 100% which CAN library I will be using
+  Serial.print("changeCANSettings: ");
+  Serial.println(arg);
+}
+                                                                      
+     
+// Create menus (each menu must have no more than 5 options to choose)
+// The order of the menus in the code must consider the order of definitions
+// Thus the structure is at the top and the highest menu hierarchy is at the bottom
+
+// Menu Structure
+enum { M, A };
+struct Menu {
+  const char* text;
+  int          action;
+  Menu* menu;
+  void (*func) (int);
+  int          arg;
+};
+
+Menu CANSettings[]{
+  { "CAN Bus 0 Speed", A, 0, changeCANSettings, 0 },
+  { },
+};
+
+Menu menuOutput[]{
+  { "Live CanDrive", A, 0, actionOutputChange, 1 },
+  { "Live Display", A, 0, actionOutputChange, 2 },
+  { "Serial SavvyCAN", A, 0, actionOutputChange, 3 },
+  { "Save SavvyCAN", A, 0, actionOutputChange, 4 },
+  { "WiFi Data", A, 0, actionOutputChange, 5 },
+  { },
+};
+
+Menu menuRoot[]{
+  { "CAN Settings", M, CANSettings},
+  { "Output Type", M, menuOutput},
+  { },
+};
+
+// Set and track the corrent menu being displayed
+Menu* menu = menuRoot;                                                // Start with the top most menu
+int menuButtons = 0;                                                  // menuButtons will be updated each time a menu is drawn
 
 
 // Add MCP2515 Modules
@@ -159,11 +223,27 @@ struct can_frame frame;
 // Add SD Card Serial Port
 HardwareSerial SD_Port(SD_PORT_HARDWARE_SERIAL_NUMBER);               // Connect OpenLager to Hardware Serial Port specified
 
+// Invoke the TFT_eSPI button class and create all the button objects
+TFT_eSPI_Button btnMenu[5];
+
+
 void setup() {
   // Serial needs to be at least 2,000,000 baud otherwise lines will be dropped when outputting CAN lines to the standard serial output display.
   while (!Serial) { Serial.begin(STANDARD_SERIAL_OUTPUT_BAUD); delay(100); }
 
-  Serial.printf("\nName: OBD2_Interface_v2\nCreated:	Sep 2024\nAuthor : Kevin Guest AKA TheBionicBone\n");
+  // Display the Serial header
+  Serial.printf("\nName        : OBD2_Interface_v2\nCreated     : Sep 2024\nAuthor      : Kevin Guest AKA TheBionicBone\n");
+  Serial.printf("Program     : %s\n", TOP_MENU_PROGRAM_VERSION);
+  Serial.printf("ESP-IDF     : %s\n",esp_get_idf_version());
+  Serial.printf("Arduino Core: v%d.%d.%d\n", ESP_ARDUINO_VERSION_MAJOR, ESP_ARDUINO_VERSION_MINOR, ESP_ARDUINO_VERSION_PATCH);
+  // Check the ESP32 Arduino Core used to compile the code has been validated 
+  if (ESP_ARDUINO_VERSION > ESP_ARDUINO_VERSION_VAL(2, 0, 17)) {
+    Serial.printf("\n\n");
+    Serial.printf("This ESP Arduino Core Version has not been tested\n");
+    Serial.printf("To ensure full compatibility use ESP32 Arduino Core v2.0.17\n");
+    Serial.printf("***!!!*** PROCEED WITH CAUTION ***!!!***\n");
+    // TODO: Add a message box to the display so user has to accept the warning or quit with while(true) statement
+  }
 
   // Start SD Card
   SDCardStart(SD_CARD_ESP32_S3_TX_PIN);
@@ -178,41 +258,49 @@ void setup() {
   digitalWrite(TFT_Rectangle_ILI9341_LEDPIN, HIGH);
 
   // Calibrate the touch screen and retrieve the scaling factors, see Setup42_ILI9341_ESP32.h for more touch CS Pin definition
+  TFT_Rectangle_ILI9341.setRotation(3);
   TFTRectangleILI9341TouchCalibrate();
 
   // Prepare display after calibration
   TFT_Rectangle_ILI9341.setRotation(3);
   TFT_Rectangle_ILI9341.fillScreen(TFT_LANDROVERGREEN);
   TFT_Rectangle_ILI9341.setTextColor(TFT_WHITE, TFT_LANDROVERGREEN, true);
+
+  // Draw the initial Title and Menu
+  drawHorizontalMenu(TOP_MENU_PROGRAM_NAME, TOP_MENU_PROGRAM_VERSION, TOP_MENU_Y_OFFSET, MENU_FONT);
 }
+
 
 
 void loop() {
 
-  while (numberOfCANFramesReceived[0] < 10000) {
+  processMenu();
+  
+  
+  //while (numberOfCANFramesReceived[0] < 10000) {
 
-    /*
-        For information
-        As part of the MCP2515 CAN Bus Controllers are 3 Rx buffers in each, thus 3 for the 500kbps, and 3 for the 125kbps CAN Bus.
-        500kbps CAN Bus will fill in a minimum period of 666us
-        125kbps CAN bus will fill in a minimum period of 2664us
-    */
+  //  /*
+  //      For information
+  //      As part of the MCP2515 CAN Bus Controllers are 3 Rx buffers in each, thus 3 for the 500kbps, and 3 for the 125kbps CAN Bus.
+  //      500kbps CAN Bus will fill in a minimum period of 666us
+  //      125kbps CAN bus will fill in a minimum period of 2664us
+  //  */
 
-    // Check the 500kbps bus as priority over 125kbps because 500kbps is faster and the buffers fill significantly more quickly
-    if (CANBusCheckRecieved(mcp2515_0)) {
-      if (CANBusReadCANData(mcp2515_0)) {
-        CANFrameProcessing(0);
-      }
-    }
-    // only check the 125kbps if there any no 500kbps messages in the MCP2515 buffers
-    else if (CANBusCheckRecieved(mcp2515_1)) {
-      if (CANBusReadCANData(mcp2515_1)) {
-        CANFrameProcessing(1);
-      }
-    }
-  }
+  //  // Check the 500kbps bus as priority over 125kbps because 500kbps is faster and the buffers fill significantly more quickly
+  //  if (CANBusCheckRecieved(mcp2515_0)) {
+  //    if (CANBusReadCANData(mcp2515_0)) {
+  //      CANFrameProcessing(0);
+  //    }
+  //  }
+  //  // only check the 125kbps if there any no 500kbps messages in the MCP2515 buffers
+  //  else if (CANBusCheckRecieved(mcp2515_1)) {
+  //    if (CANBusReadCANData(mcp2515_1)) {
+  //      CANFrameProcessing(1);
+  //    }
+  //  }
+  //}
  
-  TemporaryOutputResults();
+  //TemporaryOutputResults();
 
 }
 
@@ -429,12 +517,14 @@ void TemporaryOutputResults() {
   while (true);
 }
 
+
 // Calibrate the touch screen and retrieve the scaling factors, see Setup42_ILI9341_ESP32.h for more touch CS Pin definition
 // To recalibrate set REPEAT_CALIBRATION = true 
+// TODO - Checkout tft.calibrateTouch();
 void TFTRectangleILI9341TouchCalibrate() {
   // This calibration code came for the TFT_eSPI library example Keypad_240x320
   // My thanks to Bodmer for this code, copywrite acknowledged in the header and library folder
-  
+
   uint16_t calData[5];
   uint8_t calDataOK = 0;
 
@@ -500,3 +590,150 @@ void TFTRectangleILI9341TouchCalibrate() {
 }
 
 
+// Draw a menu along the top of the TFT Display (320 x 240) Rotation 3
+// Menu options are drawn in a line across the top of the screen
+// Contents based on the current menu defined by menu structures
+void drawHorizontalMenu(String menuHeader, String codeVersion, int yOffset, GFXfont menuFont) {
+  TFT_Rectangle_ILI9341.fillScreen(TFT_LANDROVERGREEN);
+  TFT_Rectangle_ILI9341.setTextColor(TFT_WHITE, TFT_LANDROVERGREEN, true);
+  TFT_Rectangle_ILI9341.setTextDatum(TL_DATUM);
+  TFT_Rectangle_ILI9341.setFreeFont(&menuFont);                       // Must set menu font for following calculations
+
+  // Determine the maximum number of characters in a button so we can calculate the button width correctly
+  byte maxChars = 0;
+  menuButtons = 0;
+  while (menu[menuButtons].text) {
+    if (maxChars < String(menu[menuButtons].text).length()) maxChars = String(menu[menuButtons].text).length();
+    menuButtons++;
+  }
+  if (maxChars < 10) maxChars = 10;                                   // Minimum button size so user can easily select it
+
+  // Calculate the basic button positions
+  int fontWidth = 10; // take a default value for now
+  int yButtonMiddle = TFT_Rectangle_ILI9341.fontHeight() + yOffset;
+  int xButtonWidth = fontWidth * maxChars;
+  int yButtonHeight = TFT_Rectangle_ILI9341.fontHeight() * 1;
+
+  // Draw the menu header
+  TFT_Rectangle_ILI9341.drawString(menuHeader, 0, 0);
+  TFT_Rectangle_ILI9341.setTextDatum(TR_DATUM);
+  TFT_Rectangle_ILI9341.drawString(codeVersion, TFT_Rectangle_ILI9341.width(), 0);
+  TFT_Rectangle_ILI9341.setTextDatum(MC_DATUM);
+
+  // Draw the menu buttons
+  TFT_Rectangle_ILI9341.setFreeFont(&menuFont);
+  char handler[1] = "";
+  menuButtons = 0;                                                    // Reset the Global Variable that tracks the number of buttons that will be active on the new menu
+  while (menu[menuButtons].text) {
+    btnMenu[menuButtons].initButton(&TFT_Rectangle_ILI9341,
+      (menuButtons * xButtonWidth) + (menuButtons * 5) + (xButtonWidth / 2),
+      yButtonMiddle,
+      xButtonWidth,
+      yButtonHeight,
+      TFT_YELLOW, TFT_BLUE, TFT_YELLOW, handler, 1);                  // initButton limits the amount of text drawn, draw text in the drawButton() function
+    btnMenu[menuButtons].drawButton(false, menu[menuButtons].text);   // Specifiy the text for the button because initButton will not display the full text length
+    btnMenu[menuButtons].press(false);                                // Because I am reusing buttons it is important to tell the button it is NOT pressed
+    menuButtons++;                                                    // Add the button to the Global Variable that tracks the number of active buttons
+  }
+}
+
+
+// Draw a menu in middle of the TFT Display (320 x 240) Rotation 3
+// Menu options are drawn in a line down the screen and presented as buttons
+// Contents based on the current menu defined by menu structures
+void drawVerticalMenu(String menuHeader, int yOffset, GFXfont headerFont, GFXfont menuFont) {
+  TFT_Rectangle_ILI9341.fillScreen(TFT_LANDROVERGREEN);
+  TFT_Rectangle_ILI9341.setTextColor(TFT_WHITE, TFT_LANDROVERGREEN, true);
+  TFT_Rectangle_ILI9341.setTextDatum(MC_DATUM);
+  TFT_Rectangle_ILI9341.setFreeFont(&menuFont);                       // Must set menu font for following calculations
+
+  // Determine the maximum number of characters in a button so we can calculate the button width correctly
+  byte maxChars = 0;
+  menuButtons = 0;
+  while (menu[menuButtons].text) {
+    if (maxChars < String(menu[menuButtons].text).length()) maxChars = String(menu[menuButtons].text).length();
+    menuButtons++;
+  }
+  if (maxChars < 10) maxChars = 10;                                   // Minimum button size so user can easily select it
+
+  // Calculate the basic button positions
+  int fontWidth = 10; // take a default value for now
+  int xButtonMiddle = TFT_Rectangle_ILI9341.width() / 2;
+  int yButtonMiddle = TFT_Rectangle_ILI9341.fontHeight() * 1.8;
+  int xButtonWidth = fontWidth * maxChars;
+  int yButtonHeight = TFT_Rectangle_ILI9341.fontHeight() * 1.30;
+
+  // Draw the menu header
+  TFT_Rectangle_ILI9341.setFreeFont(&headerFont);
+  TFT_Rectangle_ILI9341.drawString(menuHeader, xButtonMiddle, (yOffset - TFT_Rectangle_ILI9341.fontHeight()) / 2);
+
+  // Draw the menu buttons
+  TFT_Rectangle_ILI9341.setFreeFont(&menuFont);
+  char handler[1] = "";
+  menuButtons = 0;                                                    // Reset the Global Variable that tracks the number of buttons that will be active on the new menu
+  while (menu[menuButtons].text) {
+    btnMenu[menuButtons].initButton(&TFT_Rectangle_ILI9341,
+      xButtonMiddle,
+      menuButtons * yButtonMiddle + yOffset,
+      xButtonWidth,
+      yButtonHeight,
+      TFT_YELLOW, TFT_BLUE, TFT_YELLOW, handler, 1);                  // initButton limits the amount of text drawn, draw text in the drawButton() function
+    btnMenu[menuButtons].drawButton(false, menu[menuButtons].text);   // Specifiy the text for the button because initButton will not display the full text length
+    btnMenu[menuButtons].press(false);                                // Because I am reusing buttons it is important to tell the button it is NOT pressed
+    menuButtons++;                                                    // Add the button to the Global Variable that tracks the number of active buttons
+  }
+}
+
+
+// Processes the menu buttons currently shown on the display
+// Depending on the menu structure contents this function may
+// display another menu or call another function
+void processMenu() {
+  while (true) {
+    uint16_t t_x = 0, t_y = 0;                                        // To store the touch coordinates
+
+    // Pressed will be set true is there is a valid touch on the screen
+    bool pressed = TFT_Rectangle_ILI9341.getTouch(&t_x, &t_y);
+
+    // Check if any key coordinate boxes contain the touch coordinates
+    for (uint8_t b = 0; b < menuButtons; b++) {
+      if (pressed && btnMenu[b].contains(t_x, t_y)) {
+        btnMenu[b].press(true);                                       // tell the button it is pressed
+      }
+      else {
+        btnMenu[b].press(false);                                      // tell the button it is NOT pressed
+      }
+    }
+
+    // Check if any key has changed state
+    for (uint8_t b = 0; b < menuButtons; b++) {
+
+      TFT_Rectangle_ILI9341.setFreeFont(&MENU_FONT);
+
+      if (btnMenu[b].justPressed()) {
+        btnMenu[b].drawButton(true, menu[b].text);                    // draw invert
+        Serial.printf("menuButtons = %d\n", menuButtons);
+        Serial.printf("%d pressed, x = %d, y = %d\n", b, t_x, t_y);
+        delay(100);                                                   // UI debouncing
+      }
+
+      if (btnMenu[b].justReleased()) {
+        btnMenu[b].drawButton(false, menu[b].text);                   // draw normal
+        Serial.printf("menuButtons = %d\n", menuButtons);
+        Serial.printf("%d released, x = %d, y = %d\n\n", b, t_x, t_y);
+
+        // Process the button press
+        if (M == menu[b].action) {                                    // User selection required another menu
+          menu = menu[b].menu;
+          drawVerticalMenu("Select Required Output", MENU_Y_OFFSET, MENU_BOLD_FONT, MENU_FONT);
+        }
+        else {                                                        // User selection calls a code function
+          menu[b].func(menu[b].arg);
+
+          menu = menuRoot;                                            // After the code function returns jump back to the root menu
+          drawHorizontalMenu(TOP_MENU_PROGRAM_NAME, TOP_MENU_PROGRAM_VERSION, TOP_MENU_Y_OFFSET, MENU_FONT);
+        }
+      }
+    }
+  }
+}

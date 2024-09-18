@@ -157,7 +157,8 @@ bool                CANBusFirstRun = false;                           // Will se
 unsigned long       totalCANReceiveTimeTimer = 0;                     // Times how long we have been receiving CAN Frames
 unsigned int        numberOfCANFramesReceived[2] = { 0,0 };           // Counts the number of CAN Frames received
 byte                menuCurrentlyDisplayed = 0;                       // Tracks the menu displayed
-
+byte                menuButtons = 0;                                  // menuButtons controls how many buttons are currently in use, updated when menu is drawn
+byte                menuButtonsPos = 0;                               // menuButtonsPos controls the line in the menu struct of the first button, updated when menu is drawn
 
 
 // Sets the new output requirements
@@ -181,7 +182,7 @@ void changeCANSettings(int arg) {
 // Thus the structure is at the top and the highest menu hierarchy is at the bottom
 
 // Menu Structure
-enum { M, A };
+enum { H, M, A };                                                     // H = Header, M = New Menu, A = Action Menu Option 
 struct Menu {
   const char* text;
   int          action;
@@ -190,12 +191,16 @@ struct Menu {
   int          arg;
 };
 
+// Create the menus
+// H = Header, M = New Menu, A = Action Menu Option 
 Menu CANSettings[]{
+  { "CAN Bus Settings", H },
   { "CAN Bus 0 Speed", A, 0, changeCANSettings, 0 },
   { },
 };
 
 Menu menuOutput[]{
+  { "Select Required Output", H },
   { "Live CanDrive", A, 0, actionOutputChange, 1 },
   { "Live Display", A, 0, actionOutputChange, 2 },
   { "Serial SavvyCAN", A, 0, actionOutputChange, 3 },
@@ -205,6 +210,7 @@ Menu menuOutput[]{
 };
 
 Menu menuRoot[]{
+  // TODO  WARNING: H (header) option is not available in the horizontal menu
   { "CAN Settings", M, CANSettings},
   { "Output Type", M, menuOutput},
   { },
@@ -212,8 +218,6 @@ Menu menuRoot[]{
 
 // Set and track the corrent menu being displayed
 Menu* menu = menuRoot;                                                // Start with the top most menu
-int menuButtons = 0;                                                  // menuButtons will be updated each time a menu is drawn
-
 
 // Add MCP2515 Modules
 MCP2515 mcp2515_0(CAN_BUS_0_CS_PIN);                                  // Create MCP2515 controller for High Speed CAN Bus 500kbps
@@ -624,6 +628,7 @@ void drawHorizontalMenu(String menuHeader, String codeVersion, int yOffset, GFXf
   TFT_Rectangle_ILI9341.setFreeFont(&menuFont);
   char handler[1] = "";
   menuButtons = 0;                                                    // Reset the Global Variable that tracks the number of buttons that will be active on the new menu
+  menuButtonsPos = 0;
   while (menu[menuButtons].text) {
     btnMenu[menuButtons].initButton(&TFT_Rectangle_ILI9341,
       (menuButtons * xButtonWidth) + (menuButtons * 5) + (xButtonWidth / 2),
@@ -641,18 +646,25 @@ void drawHorizontalMenu(String menuHeader, String codeVersion, int yOffset, GFXf
 // Draw a menu in middle of the TFT Display (320 x 240) Rotation 3
 // Menu options are drawn in a line down the screen and presented as buttons
 // Contents based on the current menu defined by menu structures
-void drawVerticalMenu(String menuHeader, int yOffset, GFXfont headerFont, GFXfont menuFont) {
+void drawVerticalMenu(int yOffset, GFXfont headerFont, GFXfont menuFont) {
   TFT_Rectangle_ILI9341.fillScreen(TFT_LANDROVERGREEN);
   TFT_Rectangle_ILI9341.setTextColor(TFT_WHITE, TFT_LANDROVERGREEN, true);
   TFT_Rectangle_ILI9341.setTextDatum(MC_DATUM);
   TFT_Rectangle_ILI9341.setFreeFont(&menuFont);                       // Must set menu font for following calculations
 
-  // Determine the maximum number of characters in a button so we can calculate the button width correctly
+  // Determine the maximum number of characters in a button so we can calculate the 
+  //button width correctly and starting position of the buttons in the menu structure
   byte maxChars = 0;
+  byte menuPosition = 0;
   menuButtons = 0;
-  while (menu[menuButtons].text) {
-    if (maxChars < String(menu[menuButtons].text).length()) maxChars = String(menu[menuButtons].text).length();
-    menuButtons++;
+  menuButtonsPos = 99;
+  while (menu[menuPosition].text) {
+    if (A == menu[menuPosition].action) {
+      if (maxChars < String(menu[menuPosition].text).length()) maxChars = String(menu[menuPosition].text).length();
+      if (menuButtonsPos == 99) menuButtonsPos = menuPosition;        // Capture the position of the first button in the menu structure
+      menuButtons++;
+    }
+    menuPosition++;
   }
   if (maxChars < 10) maxChars = 10;                                   // Minimum button size so user can easily select it
 
@@ -663,24 +675,33 @@ void drawVerticalMenu(String menuHeader, int yOffset, GFXfont headerFont, GFXfon
   int xButtonWidth = fontWidth * maxChars;
   int yButtonHeight = TFT_Rectangle_ILI9341.fontHeight() * 1.30;
 
-  // Draw the menu header
-  TFT_Rectangle_ILI9341.setFreeFont(&headerFont);
-  TFT_Rectangle_ILI9341.drawString(menuHeader, xButtonMiddle, (yOffset - TFT_Rectangle_ILI9341.fontHeight()) / 2);
-
   // Draw the menu buttons
   TFT_Rectangle_ILI9341.setFreeFont(&menuFont);
   char handler[1] = "";
-  menuButtons = 0;                                                    // Reset the Global Variable that tracks the number of buttons that will be active on the new menu
-  while (menu[menuButtons].text) {
-    btnMenu[menuButtons].initButton(&TFT_Rectangle_ILI9341,
-      xButtonMiddle,
-      menuButtons * yButtonMiddle + yOffset,
-      xButtonWidth,
-      yButtonHeight,
-      TFT_YELLOW, TFT_BLUE, TFT_YELLOW, handler, 1);                  // initButton limits the amount of text drawn, draw text in the drawButton() function
-    btnMenu[menuButtons].drawButton(false, menu[menuButtons].text);   // Specifiy the text for the button because initButton will not display the full text length
-    btnMenu[menuButtons].press(false);                                // Because I am reusing buttons it is important to tell the button it is NOT pressed
-    menuButtons++;                                                    // Add the button to the Global Variable that tracks the number of active buttons
+  menuPosition = 0;
+  menuButtons = 0; 
+
+  // Reset the Global Variable that tracks the number of buttons that will be active on the new menu
+  while (menu[menuPosition].text) {
+    if (H == menu[menuPosition].action) {
+      // Draw the menu header
+      TFT_Rectangle_ILI9341.setFreeFont(&headerFont);
+      TFT_Rectangle_ILI9341.drawString(menu[menuPosition].text, xButtonMiddle, (yOffset - TFT_Rectangle_ILI9341.fontHeight()) / 2);
+      TFT_Rectangle_ILI9341.setFreeFont(&menuFont);
+    }
+    else if (A == menu[menuPosition].action) {
+      // Draw the action button
+      btnMenu[menuButtons].initButton(&TFT_Rectangle_ILI9341,
+        xButtonMiddle,
+        menuButtons * yButtonMiddle + yOffset,
+        xButtonWidth,
+        yButtonHeight,
+        TFT_YELLOW, TFT_BLUE, TFT_YELLOW, handler, 1);                // initButton limits the amount of text drawn, draw text in the drawButton() function
+      btnMenu[menuButtons].drawButton(false, menu[menuPosition].text);// Specifiy the text for the button because initButton will not display the full text length
+      btnMenu[menuButtons].press(false);                              // Because I am reusing buttons it is important to tell the button it is NOT pressed
+      menuButtons++;                                                  // Add the button to the Global Variable that tracks the number of active buttons
+    }
+    menuPosition++;
   }
 }
 
@@ -711,24 +732,20 @@ void processMenu() {
       TFT_Rectangle_ILI9341.setFreeFont(&MENU_FONT);
 
       if (btnMenu[b].justPressed()) {
-        btnMenu[b].drawButton(true, menu[b].text);                    // draw invert
-        Serial.printf("menuButtons = %d\n", menuButtons);
-        Serial.printf("%d pressed, x = %d, y = %d\n", b, t_x, t_y);
+        btnMenu[b].drawButton(true, menu[b + menuButtonsPos].text);   // draw invert
         delay(100);                                                   // UI debouncing
       }
 
       if (btnMenu[b].justReleased()) {
-        btnMenu[b].drawButton(false, menu[b].text);                   // draw normal
-        Serial.printf("menuButtons = %d\n", menuButtons);
-        Serial.printf("%d released, x = %d, y = %d\n\n", b, t_x, t_y);
+        btnMenu[b].drawButton(false, menu[b + menuButtonsPos].text);  // draw normal
 
         // Process the button press
-        if (M == menu[b].action) {                                    // User selection required another menu
-          menu = menu[b].menu;
-          drawVerticalMenu("Select Required Output", MENU_Y_OFFSET, MENU_BOLD_FONT, MENU_FONT);
+        if (M == menu[b + menuButtonsPos].action) {                   // User selection required another menu
+          menu = menu[b + menuButtonsPos].menu;
+          drawVerticalMenu(MENU_Y_OFFSET, MENU_BOLD_FONT, MENU_FONT);
         }
-        else {                                                        // User selection calls a code function
-          menu[b].func(menu[b].arg);
+        else if(A == menu[b + menuButtonsPos].action) {               // User selection calls a code function
+          menu[b + menuButtonsPos].func(menu[b + menuButtonsPos].arg);
 
           menu = menuRoot;                                            // After the code function returns jump back to the root menu
           drawHorizontalMenu(TOP_MENU_PROGRAM_NAME, TOP_MENU_PROGRAM_VERSION, TOP_MENU_Y_OFFSET, MENU_FONT);

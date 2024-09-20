@@ -154,19 +154,30 @@ const auto          MENU_Y_OFFSET = 68;                               // Used to
 // Control variables
 bool                sdCardFirstRun = false;                           // Will set to true when SD Card initialises, trigger for SavvyCAN header
 bool                CANBusFirstRun = false;                           // Will set to true when CAN Bus mode changes, trigger for cfps timer to start
-unsigned long       totalCANReceiveTimeTimer = 0;                     // Times how long we have been receiving CAN Frames
-unsigned int        numberOfCANFramesReceived[2] = { 0,0 };           // Counts the number of CAN Frames received
+ulong               totalCANReceiveTimeTimer = 0;                     // Times how long we have been receiving CAN Frames
+uint                numberOfCANFramesReceived[2] = { 0,0 };           // Counts the number of CAN Frames received
 byte                menuCurrentlyDisplayed = 0;                       // Tracks the menu displayed
 byte                menuButtons = 0;                                  // menuButtons controls how many buttons are currently in use, updated when menu is drawn
 byte                menuButtonsPos = 0;                               // menuButtonsPos controls the line in the menu struct of the first button, updated when menu is drawn
+enum                OUTPUT_TYPES { Output_Analyse_CAN_Bus_Results, Output_Format_CanDrive, Output_Format_SavvyCan, Output_SD_Card_SavvyCAN, Output_WiFi};
+byte                outputFormat = false;                             // Tracks the required output type
+ulong               upTimer = micros();                               // Tracks how long the program has been running, used in the outputs
 
 
 // Sets the new output requirements
 void actionOutputChange(int arg) {
-  // TODO write the script
-  Serial.print("action: ");
-  Serial.println(arg);
+  outputFormat = arg;
+  switch (outputFormat) {
+  case Output_Analyse_CAN_Bus_Results:
+    Serial.printf("actionOutputChange Case OK\n");
+    OutputAnalyseCANBusResults();
+    break;
+
+  default:
+    break;
+  }
 }
+
 
 // Allows user to configure the CAN BUS Settings
 void changeCANSettings(int arg) {
@@ -201,13 +212,13 @@ Menu CANSettings[]{
 
 Menu menuOutput[]{
   { "Select Required Output", H },
-  { "Live CanDrive", A, 0, actionOutputChange, 1 },
-  { "Live Display", A, 0, actionOutputChange, 2 },
-  { "Serial SavvyCAN", A, 0, actionOutputChange, 3 },
-  { "Save SavvyCAN", A, 0, actionOutputChange, 4 },
-  { "WiFi Data", A, 0, actionOutputChange, 5 },
+  { "Analyse CAN Bus Capacity", A, 0, actionOutputChange, Output_Analyse_CAN_Bus_Results },
+  { "Serial CanDrive", A, 0, actionOutputChange, Output_Format_CanDrive },
+  { "Serial SavvyCAN", A, 0, actionOutputChange, Output_Format_SavvyCan },
+  { "Save SavvyCAN", A, 0, actionOutputChange, Output_SD_Card_SavvyCAN },
+  { "WiFi Data", A, 0, actionOutputChange, Output_WiFi },
   { },
-};
+}; 
 
 Menu menuRoot[]{
   // TODO  WARNING: H (header) option is not available in the horizontal menu
@@ -229,6 +240,352 @@ HardwareSerial SD_Port(SD_PORT_HARDWARE_SERIAL_NUMBER);               // Connect
 
 // Invoke the TFT_eSPI button class and create all the button objects
 TFT_eSPI_Button btnMenu[5];
+
+
+enum MESSAGE_BOX { BTN_OK, BTN_IGNORE, BTN_CANCEL };
+// Displays a message box on the display and allows the user to respond
+uint MessageBox(char* title, char* message, byte options) {
+  Serial.printf("MessageBox OK\n");
+  uint result = 0;
+  uint boxX = TFT_Rectangle_ILI9341.width() * 0.1;
+  uint boxY = TFT_Rectangle_ILI9341.height() * 0.2 + TOP_MENU_Y_OFFSET;
+  uint boxWidth = TFT_Rectangle_ILI9341.width() * 0.8;
+  uint boxHeight = TFT_Rectangle_ILI9341.height() * 0.6;
+  uint lineY = boxY;
+
+  // Set up the display
+  // TODO - Write a custom fillScreen function that displays the program and version at the top 
+  TFT_Rectangle_ILI9341.fillScreen(TFT_LANDROVERGREEN);
+  TFT_Rectangle_ILI9341.setTextColor(TFT_YELLOW, TFT_LANDROVERGREEN, true);
+  TFT_Rectangle_ILI9341.setFreeFont(&MENU_FONT);
+  TFT_Rectangle_ILI9341.drawString(TOP_MENU_PROGRAM_NAME, 0, 0);
+  TFT_Rectangle_ILI9341.setTextDatum(TR_DATUM);
+  TFT_Rectangle_ILI9341.drawString(TOP_MENU_PROGRAM_VERSION, TFT_Rectangle_ILI9341.width(), 0);
+  TFT_Rectangle_ILI9341.setTextDatum(MC_DATUM);
+  TFT_Rectangle_ILI9341.setTextColor(TFT_YELLOW, TFT_BLUE, true);
+
+  // Draw the message box
+  TFT_Rectangle_ILI9341.drawRect(boxX - 1, boxY - 1, boxWidth + 2, boxHeight + 2, TFT_YELLOW);
+  TFT_Rectangle_ILI9341.fillRect(boxX, boxY, boxWidth, boxHeight, TFT_BLUE);
+
+  // Draw the message title
+  lineY += TFT_Rectangle_ILI9341.fontHeight() * 0.5;
+  TFT_Rectangle_ILI9341.setFreeFont(&MENU_BOLD_FONT);
+  TFT_Rectangle_ILI9341.drawString(String(title), TFT_Rectangle_ILI9341.width() / 2, lineY);
+  TFT_Rectangle_ILI9341.setFreeFont(&MENU_FONT);
+  lineY += TFT_Rectangle_ILI9341.fontHeight() * 1.5;
+
+  // Split the message into lines and draw
+  const int maxLineLength = 30;
+  char lineBuffer[maxLineLength + 1];  // +1 for the null-terminator
+  int lineLength = 0;
+  const char* current = message;
+
+  while (*current != '\0') {
+    lineLength = 0;
+    // Fill the buffer with characters until reaching the maximum length or newline
+    while (lineLength < maxLineLength && *current != '\n' && *current != '\0') {
+      lineBuffer[lineLength++] = *current++;
+    }
+    // Handle splitting lines at spaces if necessary
+    if (lineLength == maxLineLength && *current != '\0' && *current != ' ' && *current != '\n') {
+      // Walk backwards to find a space
+      while (lineLength > 0 && lineBuffer[lineLength - 1] != ' ') {
+        lineLength--;
+        current--;
+      }
+    }
+    // Null-terminate the string and print it
+    lineBuffer[lineLength] = '\0';
+    TFT_Rectangle_ILI9341.drawString(String(lineBuffer), TFT_Rectangle_ILI9341.width() / 2, lineY);
+    lineY += TFT_Rectangle_ILI9341.fontHeight() * 0.8;
+    // Skip the newline characters if present
+    if (*current == '\n') {
+      current++;
+    }
+    // Skip any leading spaces on the next line
+    while (*current == ' ') {
+      current++;
+    }
+  }
+
+  // Work out how many buttons we will need and their text
+  byte numberOfOptionButtons = 0;
+  char* messageButtons[3] = { "", "", "" };
+  uint messageButtonPos[3] = { 0,0,0 };
+
+  Serial.printf("options = %d\n", options);
+
+  messageButtons[numberOfOptionButtons] = "OK";   // Always required
+  numberOfOptionButtons++;
+  if (options & BTN_IGNORE) { messageButtons[numberOfOptionButtons] = "IGNORE"; numberOfOptionButtons++; }
+  if (options & BTN_CANCEL) { messageButtons[numberOfOptionButtons] = "CANCEL"; numberOfOptionButtons++; }
+
+  Serial.printf("numberOfOptionButtons = %d\n", numberOfOptionButtons);
+
+  // Draw the buttons
+  menuButtons = 0;
+  char handler[1] = "";
+  uint xButtonMiddle = 0;
+  uint xButtonWidth = (boxWidth / 3) * 0.95;
+  uint yButtonHeight = TFT_Rectangle_ILI9341.fontHeight() * 1.2;
+  uint yButtonMiddle = boxY + boxHeight - yButtonHeight * 0.75;
+  if (numberOfOptionButtons == 1) {
+    messageButtonPos[0] = TFT_Rectangle_ILI9341.width() / 2;
+  }
+  else if (numberOfOptionButtons == 2) {
+    messageButtonPos[0] = (TFT_Rectangle_ILI9341.width() / 2) - xButtonWidth - 5;
+    messageButtonPos[1] = (TFT_Rectangle_ILI9341.width() / 2) + xButtonWidth + 5;
+  }
+  else if (numberOfOptionButtons == 3) {
+    messageButtonPos[0] = (TFT_Rectangle_ILI9341.width() / 2) - xButtonWidth - 5;
+    messageButtonPos[1] = TFT_Rectangle_ILI9341.width() / 2;
+    messageButtonPos[2] = (TFT_Rectangle_ILI9341.width() / 2) + xButtonWidth + 5;
+  }
+
+  for (uint i = 0; i < numberOfOptionButtons; i++) {
+    btnMenu[menuButtons].initButton(&TFT_Rectangle_ILI9341,
+      messageButtonPos[i],
+      yButtonMiddle,
+      xButtonWidth,
+      yButtonHeight,
+      TFT_YELLOW, TFT_BLUE, TFT_YELLOW, handler, 1);                // initButton limits the amount of text drawn, draw text in the drawButton() function
+    btnMenu[menuButtons].drawButton(false, messageButtons[menuButtons]);// Specifiy the text for the button because initButton will not display the full text length
+    btnMenu[menuButtons].press(false);                              // Because I am reusing buttons it is important to tell the button it is NOT pressed
+    menuButtons++;
+  }
+
+
+  // Process the buttons
+  uint16_t t_x = 0, t_y = 0;                                          // To store the touch coordinates
+
+  bool pressed = false;
+  while (!pressed) {
+    while (!pressed) {
+      // Pressed will be set true is there is a valid touch on the screen
+      pressed = TFT_Rectangle_ILI9341.getTouch(&t_x, &t_y);
+
+      // Check if any key coordinate boxes contain the touch coordinates
+      for (uint8_t b = 0; b < menuButtons; b++) {
+        if (pressed && btnMenu[b].contains(t_x, t_y)) {
+          btnMenu[b].press(true);                                         // tell the button it is pressed
+        }
+        else {
+          btnMenu[b].press(false);                                        // tell the button it is NOT pressed
+        }
+      }
+    }
+
+
+    // Check if any key has changed state
+    pressed = false;
+    for (uint8_t b = 0; b < menuButtons; b++) {
+
+      TFT_Rectangle_ILI9341.setFreeFont(&MENU_FONT);
+
+      if (btnMenu[b].justPressed()) {
+        btnMenu[b].drawButton(true, messageButtons[b]);     // draw invert
+        result = b;
+        pressed = true;                  // Signal that a button was pressed and not just the screen in general
+        delay(100);                                                     // UI debouncing
+      }
+    }
+  }
+
+  // Clear the display and reset the program header
+  TFT_Rectangle_ILI9341.fillScreen(TFT_LANDROVERGREEN);
+
+  // Evaluate the user choice to the MESSAGE_BOX enum values
+  if (messageButtons[result] == "IGNORE") result = BTN_IGNORE;
+  else if (messageButtons[result] == "CANCEL") result = BTN_CANCEL;
+  
+  return result;
+}
+
+
+// Performs analysis on both CAN Interfaces to determine if the OBD2_Interface can sucessfully read both at the same time
+void OutputAnalyseCANBusResults() {
+
+  /*
+    For information
+    As part of the MCP2515 CAN Bus Controllers are 3 Rx buffers in each, thus 3 for the 500kbps, and 3 for the 125kbps CAN Bus.
+    500kbps CAN Bus will fill in a minimum period of 666us
+    125kbps CAN bus will fill in a minimum period of 2664us
+  */
+
+  Serial.printf("OutputAnalyseCANBusResults OK\n");
+  uint result = MessageBox("Analyse CAN Bus Capacity", "Ensure the OBD2 device is connected to the car with the engine running.", BTN_OK + BTN_CANCEL);
+
+  Serial.print("Returned Option "); Serial.println(result);
+
+  if (result == BTN_OK) {
+    uint cfps[2] = { 0,0 };
+    ulong totalCANReceiveTime = 0;
+    CANBusFirstRun = false;
+
+    TFT_Rectangle_ILI9341.fillScreen(TFT_LANDROVERGREEN);
+    TFT_Rectangle_ILI9341.setTextColor(TFT_YELLOW, TFT_LANDROVERGREEN, true);
+    TFT_Rectangle_ILI9341.setFreeFont(&MENU_FONT);
+    TFT_Rectangle_ILI9341.drawString(TOP_MENU_PROGRAM_NAME, 0, 0);
+    TFT_Rectangle_ILI9341.setTextDatum(TR_DATUM);
+    TFT_Rectangle_ILI9341.drawString(TOP_MENU_PROGRAM_VERSION, TFT_Rectangle_ILI9341.width(), 0);
+    TFT_Rectangle_ILI9341.setTextDatum(MC_DATUM);
+    TFT_Rectangle_ILI9341.setTextColor(TFT_YELLOW, TFT_BLUE, true);
+
+    TFT_Rectangle_ILI9341.setTextFont(2);
+    TFT_Rectangle_ILI9341.setTextColor(TFT_BLACK);
+    TFT_Rectangle_ILI9341.setTextDatum(TL_DATUM);
+
+    // Draw Results table
+    uint tableX = 20;
+    uint tableY = 100;
+    uint tableW = 280;
+    uint tableH = 80;
+    uint tableFontH = TFT_Rectangle_ILI9341.fontHeight();
+    uint tableFontW = TFT_Rectangle_ILI9341.textWidth("A");
+    // Draw table
+    TFT_Rectangle_ILI9341.drawRect(tableX - 1, tableY - 1, tableW + 2, tableH + 2, TFT_LIGHTGREY);
+    TFT_Rectangle_ILI9341.fillRect(tableX, tableY, tableW, tableH, TFT_GREEN);
+    // Horizontal Lines
+    TFT_Rectangle_ILI9341.drawLine(tableX, tableY + tableFontH + 2, tableX + tableW, tableY + tableFontH + 2, TFT_LIGHTGREY);
+    TFT_Rectangle_ILI9341.drawLine(tableX, tableY + tableFontH + 22, tableX + tableW, tableY + tableFontH + 22, TFT_LIGHTGREY);
+    TFT_Rectangle_ILI9341.drawLine(tableX, tableY + tableFontH + 42, tableX + tableW, tableY + tableFontH + 42, TFT_LIGHTGREY);
+    // Vertical Lines
+    TFT_Rectangle_ILI9341.drawLine(tableX + (tableFontW * 7), tableY, tableX + (tableFontW * 7), tableY + tableH, TFT_LIGHTGREY);
+    TFT_Rectangle_ILI9341.drawLine(tableX + (tableFontW * 17), tableY, tableX + (tableFontW * 17), tableY + tableH, TFT_LIGHTGREY);
+    TFT_Rectangle_ILI9341.drawLine(tableX + (tableFontW * 26), tableY, tableX + (tableFontW * 26), tableY + tableH, TFT_LIGHTGREY);
+
+    TFT_Rectangle_ILI9341.drawString("Results", tableX + 2, tableY);
+    TFT_Rectangle_ILI9341.drawCentreString("Capacity*", tableX + (tableFontW * 12), tableY, 2);
+    TFT_Rectangle_ILI9341.drawCentreString("Single", tableX + (tableFontW * 22), tableY, 2);
+    TFT_Rectangle_ILI9341.drawCentreString("Dual", tableX + (tableFontW * 31), tableY, 2);
+
+    TFT_Rectangle_ILI9341.drawString("500kbps", tableX + 2, tableY + 20);
+    TFT_Rectangle_ILI9341.drawString("125kbps", tableX + 2, tableY + 40);
+    TFT_Rectangle_ILI9341.drawString("Passed", tableX + 2, tableY + 60);
+
+    TFT_Rectangle_ILI9341.setTextColor(TFT_GREEN);
+    TFT_Rectangle_ILI9341.drawString("* Calculated as 119 bits per CAN Frame", tableX + 2, TFT_Rectangle_ILI9341.height() - 10, 1);
+    TFT_Rectangle_ILI9341.setTextColor(TFT_BLACK);
+
+    // Check CAN Interface 0 CAN frames per second (cfps)
+    totalCANReceiveTimeTimer = micros();                              // Set the timer for calculating the CAN Frames per Second (cfps) 
+    while (micros() - totalCANReceiveTimeTimer < 10000000) {          // Measure for 10 seconds
+      if (CANBusCheckRecieved(mcp2515_0)) {
+        if (CANBusReadCANData(mcp2515_0)) {
+          CANFrameProcessing(0);
+        }
+      }
+    }
+    // Calculate cfps
+    totalCANReceiveTime = micros() - totalCANReceiveTimeTimer;
+    cfps[0] = (float)numberOfCANFramesReceived[0] / totalCANReceiveTime * 1000000;
+    // Calculate %
+    uint8_t percentageOfBusCapacity = 0.00;
+    float timeTaken = 0.000000;                                         // define high precision floating point math
+    timeTaken = (((float)totalCANReceiveTime / (float)1000000));        // time taken to read numberOfFramesReceived
+    uint64_t bitsTx = 119 * numberOfCANFramesReceived[0];               // 119 bits (average based on small sample of FL2 live CAN Data).
+    uint64_t bitRate = bitsTx / timeTaken;                              // bit rate used on the CAN bus
+    percentageOfBusCapacity = ((float)bitRate / 500000) * 100;          // the percentage used of the CAN bus
+    // Update table
+    TFT_Rectangle_ILI9341.drawCentreString(String(percentageOfBusCapacity) + "%", tableX + (tableFontW * 12), tableY + 20, 2);
+    TFT_Rectangle_ILI9341.drawCentreString(String(cfps[0]) + "cfps", tableX + (tableFontW * 22), tableY + 20, 2);
+
+
+    // Check CAN Interface 1 CAN frames per second (cfps)
+    totalCANReceiveTimeTimer = micros();                              // Set the timer for calculating the CAN Frames per Second (cfps) 
+    while (micros() - totalCANReceiveTimeTimer < 10000000) {          // Measure for 10 seconds
+      if (CANBusCheckRecieved(mcp2515_1)) {
+        if (CANBusReadCANData(mcp2515_1)) {
+          CANFrameProcessing(1);
+        }
+      }
+    }
+    // Calculate cfps
+    totalCANReceiveTime = micros() - totalCANReceiveTimeTimer;
+    cfps[1] = (float)numberOfCANFramesReceived[1] / totalCANReceiveTime * 1000000;
+    // Calculate %
+    percentageOfBusCapacity = 0.00;
+    timeTaken = 0.000000;                                               // define high precision floating point math
+    timeTaken = (((float)totalCANReceiveTime / (float)1000000));        // time taken to read numberOfFramesReceived
+    bitsTx = 119 * numberOfCANFramesReceived[1];                    // 119 bits (average based on small sample of FL2 live CAN Data).
+    bitRate = bitsTx / timeTaken;                                    // bit rate used on the CAN bus
+    percentageOfBusCapacity = ((float)bitRate / 125000) * 100;          // the percentage used of the CAN bus
+    // Update table
+    TFT_Rectangle_ILI9341.drawCentreString(String(percentageOfBusCapacity) + "%", tableX + (tableFontW * 12), tableY + 40, 2);
+    TFT_Rectangle_ILI9341.drawCentreString(String(cfps[1]) + "cfps", tableX + (tableFontW * 22), tableY + 40, 2);
+    TFT_Rectangle_ILI9341.drawCentreString("Yes", tableX + (tableFontW * 12), tableY + 60, 2);
+    TFT_Rectangle_ILI9341.drawCentreString("Yes", tableX + (tableFontW * 22), tableY + 60, 2);
+
+    // Check both CAN Interfaces at the same time for CAN frames per second (cfps)
+    numberOfCANFramesReceived[0] = 0;
+    numberOfCANFramesReceived[1] = 0;
+    totalCANReceiveTimeTimer = micros();                              // Set the timer for calculating the CAN Frames per Second (cfps) 
+    while (micros() - totalCANReceiveTimeTimer < 10000000) {          // Measure for 10 seconds
+      // Check the 500kbps bus as priority over 125kbps because 500kbps is faster and the buffers fill significantly more quickly
+      if (CANBusCheckRecieved(mcp2515_0)) {
+        if (CANBusReadCANData(mcp2515_0)) {
+          CANFrameProcessing(0);
+        }
+      }
+      // only check the 125kbps if there any no 500kbps messages in the MCP2515 buffers
+      else if (CANBusCheckRecieved(mcp2515_1)) {
+        if (CANBusReadCANData(mcp2515_1)) {
+          CANFrameProcessing(1);
+        }
+      }
+    }
+    totalCANReceiveTime = micros() - totalCANReceiveTimeTimer;
+
+    // Compare the results for CAN Interface 0
+    bool passed = true;
+
+    Serial.printf("Set Result %d\n", passed);
+
+    uint cfpsCompare = (float)numberOfCANFramesReceived[0] / totalCANReceiveTime * 1000000;
+
+    Serial.print("numberOfCANFramesReceived[0] = "); Serial.println(numberOfCANFramesReceived[0]);
+    Serial.print("totalCANReceiveTime = "); Serial.print(totalCANReceiveTime); Serial.println("us");
+    Serial.print("cfpsCompare = "); Serial.println(cfpsCompare);
+    Serial.print("cfps[0] = "); Serial.println(cfps[0]);
+
+    if ((cfps[0] * 0.99 <= cfpsCompare) || (cfps[0] * 1.01 >= cfpsCompare)) { passed = false; }
+    Serial.printf("Result %d\n", passed);
+
+    TFT_Rectangle_ILI9341.drawCentreString(String(cfpsCompare) + "cfps", tableX + (tableFontW * 31), tableY + 20, 2);
+
+    // Compare the results for CAN Interface 1
+    cfpsCompare = (float)numberOfCANFramesReceived[1] / totalCANReceiveTime * 1000000;
+
+    Serial.print("numberOfCANFramesReceived[1] = "); Serial.println(numberOfCANFramesReceived[1]);
+    Serial.print("totalCANReceiveTime = "); Serial.print(totalCANReceiveTime); Serial.println("us");
+    Serial.print("cfpsCompare = "); Serial.println(cfpsCompare);
+    Serial.print("cfps[1] = "); Serial.println(cfps[1]);
+
+    if (((float)cfps[1] * 0.99 <= cfpsCompare) || ((float)cfps[1] * 1.01 >= cfpsCompare)) { passed = false; }
+
+    Serial.printf("Result %d\n", passed);
+
+
+    TFT_Rectangle_ILI9341.drawCentreString(String(cfpsCompare) + "cfps", tableX + (tableFontW * 31), tableY + 40, 2);
+    if (passed) {
+      TFT_Rectangle_ILI9341.drawCentreString("Yes", tableX + (tableFontW * 31), tableY + 60, 2);
+    }
+    else {
+      TFT_Rectangle_ILI9341.drawCentreString("Yes", tableX + (tableFontW * 31), tableY + 60, 2);
+    }
+
+    TemporaryOutputResults();
+  }
+  // TODO messageBox() Code needs to return values that corrisond to enum MESSAGE_BOX regardless of number of buttons displayed
+  else if (result == BTN_CANCEL) {
+    // Dislpay Root Menu
+    drawHorizontalMenu(TOP_MENU_PROGRAM_NAME, TOP_MENU_PROGRAM_VERSION, TOP_MENU_Y_OFFSET, MENU_FONT);
+    return;
+  }
+
+  while (true);
+}
 
 
 void setup() {
@@ -275,12 +632,8 @@ void setup() {
 }
 
 
-
 void loop() {
 
-  processMenu();
-  
-  
   //while (numberOfCANFramesReceived[0] < 10000) {
 
   //  /*
@@ -302,9 +655,14 @@ void loop() {
   //      CANFrameProcessing(1);
   //    }
   //  }
+
+  //  processMenu();
   //}
  
+  
   //TemporaryOutputResults();
+
+  processMenu();
 
 }
 
@@ -444,10 +802,10 @@ void TemporaryOutputResults() {
   SD_Port.printf("numberOfFramesReceived = %d\n", numberOfCANFramesReceived[0]);
   SD_Port.printf("Frames per Second = %.2f fps\n", (float)numberOfCANFramesReceived[0] / totalCANReceiveTime * 1000000);
 
-  TFT_Rectangle_ILI9341.printf("Total Time = %d us\n", totalCANReceiveTime);
-  TFT_Rectangle_ILI9341.printf("500kbps Bus\n");
-  TFT_Rectangle_ILI9341.printf("numberOfFramesReceived = %d\n", numberOfCANFramesReceived[0]);
-  TFT_Rectangle_ILI9341.printf("Frames per Second = %.2f fps\n", (float)numberOfCANFramesReceived[0] / totalCANReceiveTime * 1000000);
+  //TFT_Rectangle_ILI9341.printf("Total Time = %d us\n", totalCANReceiveTime);
+  //TFT_Rectangle_ILI9341.printf("500kbps Bus\n");
+  //TFT_Rectangle_ILI9341.printf("numberOfFramesReceived = %d\n", numberOfCANFramesReceived[0]);
+  //TFT_Rectangle_ILI9341.printf("Frames per Second = %.2f fps\n", (float)numberOfCANFramesReceived[0] / totalCANReceiveTime * 1000000);
 
   // Calculate CAN Bus Capacity Used
 
@@ -474,7 +832,7 @@ void TemporaryOutputResults() {
 
   SD_Port.printf("Capacity used %d%% (limited accuracy)\n", percentageOfBusCapacity);
 
-  TFT_Rectangle_ILI9341.printf("Capacity used %d%% (limited accuracy)\n", percentageOfBusCapacity);
+  //TFT_Rectangle_ILI9341.printf("Capacity used %d%% (limited accuracy)\n", percentageOfBusCapacity);
 
   Serial.printf("125kbps Bus\n");
   Serial.printf("numberOfFramesReceived = %d\n", numberOfCANFramesReceived[1]);
@@ -484,9 +842,9 @@ void TemporaryOutputResults() {
   SD_Port.printf("numberOfFramesReceived = %d\n", numberOfCANFramesReceived[1]);
   SD_Port.printf("Frames per Second = %.2f fps\n", (float)numberOfCANFramesReceived[1] / totalCANReceiveTime * 1000000);
 
-  TFT_Rectangle_ILI9341.printf("125kbps Bus\n");
-  TFT_Rectangle_ILI9341.printf("numberOfFramesReceived = %d\n", numberOfCANFramesReceived[1]);
-  TFT_Rectangle_ILI9341.printf("Frames per Second = %.2f fps\n", (float)numberOfCANFramesReceived[1] / totalCANReceiveTime * 1000000);
+  //TFT_Rectangle_ILI9341.printf("125kbps Bus\n");
+  //TFT_Rectangle_ILI9341.printf("numberOfFramesReceived = %d\n", numberOfCANFramesReceived[1]);
+  //TFT_Rectangle_ILI9341.printf("Frames per Second = %.2f fps\n", (float)numberOfCANFramesReceived[1] / totalCANReceiveTime * 1000000);
 
   // Calculate CAN Bus Capacity Used
 
@@ -513,7 +871,7 @@ void TemporaryOutputResults() {
 
   SD_Port.printf("Capacity used %d%% (limited accuracy)\n", percentageOfBusCapacity);
 
-  TFT_Rectangle_ILI9341.printf("Capacity used %d%% (limited accuracy)\n", percentageOfBusCapacity);
+  //TFT_Rectangle_ILI9341.printf("Capacity used %d%% (limited accuracy)\n", percentageOfBusCapacity);
 
   SD_Port.flush();
   SD_Port.end();
@@ -710,47 +1068,69 @@ void drawVerticalMenu(int yOffset, GFXfont headerFont, GFXfont menuFont) {
 // Depending on the menu structure contents this function may
 // display another menu or call another function
 void processMenu() {
-  while (true) {
-    uint16_t t_x = 0, t_y = 0;                                        // To store the touch coordinates
 
-    // Pressed will be set true is there is a valid touch on the screen
-    bool pressed = TFT_Rectangle_ILI9341.getTouch(&t_x, &t_y);
+  uint16_t t_x = 0, t_y = 0;                                          // To store the touch coordinates
 
-    // Check if any key coordinate boxes contain the touch coordinates
-    for (uint8_t b = 0; b < menuButtons; b++) {
-      if (pressed && btnMenu[b].contains(t_x, t_y)) {
-        btnMenu[b].press(true);                                       // tell the button it is pressed
-      }
-      else {
-        btnMenu[b].press(false);                                      // tell the button it is NOT pressed
-      }
+  // Pressed will be set true is there is a valid touch on the screen
+  bool pressed = TFT_Rectangle_ILI9341.getTouch(&t_x, &t_y);
+
+  // Check if any key coordinate boxes contain the touch coordinates
+  for (uint8_t b = 0; b < menuButtons; b++) {
+    if (pressed && btnMenu[b].contains(t_x, t_y)) {
+      btnMenu[b].press(true);                                         // tell the button it is pressed
+    }
+    else {
+      btnMenu[b].press(false);                                        // tell the button it is NOT pressed
+    }
+  }
+
+  // Check if any key has changed state
+  for (uint8_t b = 0; b < menuButtons; b++) {
+
+    TFT_Rectangle_ILI9341.setFreeFont(&MENU_FONT);
+
+    if (btnMenu[b].justPressed()) {
+      btnMenu[b].drawButton(true, menu[b + menuButtonsPos].text);     // draw invert
+      delay(100);                                                     // UI debouncing
     }
 
-    // Check if any key has changed state
-    for (uint8_t b = 0; b < menuButtons; b++) {
+    if (btnMenu[b].justReleased()) {
+      btnMenu[b].drawButton(false, menu[b + menuButtonsPos].text);    // draw normal
 
-      TFT_Rectangle_ILI9341.setFreeFont(&MENU_FONT);
-
-      if (btnMenu[b].justPressed()) {
-        btnMenu[b].drawButton(true, menu[b + menuButtonsPos].text);   // draw invert
-        delay(100);                                                   // UI debouncing
+      // Process the button press
+      if (M == menu[b + menuButtonsPos].action) {                     // User selection required another menu
+        menu = menu[b + menuButtonsPos].menu;
+        drawVerticalMenu(MENU_Y_OFFSET, MENU_BOLD_FONT, MENU_FONT);
       }
+      else if (A == menu[b + menuButtonsPos].action) {                // User selection calls a code function
+        menu[b + menuButtonsPos].func(menu[b + menuButtonsPos].arg);
 
-      if (btnMenu[b].justReleased()) {
-        btnMenu[b].drawButton(false, menu[b + menuButtonsPos].text);  // draw normal
-
-        // Process the button press
-        if (M == menu[b + menuButtonsPos].action) {                   // User selection required another menu
-          menu = menu[b + menuButtonsPos].menu;
-          drawVerticalMenu(MENU_Y_OFFSET, MENU_BOLD_FONT, MENU_FONT);
-        }
-        else if(A == menu[b + menuButtonsPos].action) {               // User selection calls a code function
-          menu[b + menuButtonsPos].func(menu[b + menuButtonsPos].arg);
-
-          menu = menuRoot;                                            // After the code function returns jump back to the root menu
-          drawHorizontalMenu(TOP_MENU_PROGRAM_NAME, TOP_MENU_PROGRAM_VERSION, TOP_MENU_Y_OFFSET, MENU_FONT);
-        }
+        menu = menuRoot;                                              // After the code function returns jump back to the root menu
+        drawHorizontalMenu(TOP_MENU_PROGRAM_NAME, TOP_MENU_PROGRAM_VERSION, TOP_MENU_Y_OFFSET, MENU_FONT);
       }
     }
   }
 }
+
+
+// Directs the required output to the correct output function
+void output(ulong rxId, uint8_t len, uint8_t rxBuf[], uint8_t MCP2515number) {
+  // Send correct output to Serial
+  switch (outputFormat) {
+  case Output_Analyse_CAN_Bus_Results:
+    OutputAnalyseCANBusResults();
+    break;
+
+  default:
+    Serial.printf("ERROR: Unsupported Output Requested\n");
+    break;
+  }
+}
+
+
+
+
+
+
+
+

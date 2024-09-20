@@ -254,14 +254,7 @@ uint MessageBox(char* title, char* message, byte options) {
   uint lineY = boxY;
 
   // Set up the display
-  // TODO - Write a custom fillScreen function that displays the program and version at the top 
-  TFT_Rectangle_ILI9341.fillScreen(TFT_LANDROVERGREEN);
-  TFT_Rectangle_ILI9341.setTextColor(TFT_YELLOW, TFT_LANDROVERGREEN, true);
-  TFT_Rectangle_ILI9341.setFreeFont(&MENU_FONT);
-  TFT_Rectangle_ILI9341.drawString(TOP_MENU_PROGRAM_NAME, 0, 0);
-  TFT_Rectangle_ILI9341.setTextDatum(TR_DATUM);
-  TFT_Rectangle_ILI9341.drawString(TOP_MENU_PROGRAM_VERSION, TFT_Rectangle_ILI9341.width(), 0);
-  TFT_Rectangle_ILI9341.setTextDatum(MC_DATUM);
+  ClearDisplay();
   TFT_Rectangle_ILI9341.setTextColor(TFT_YELLOW, TFT_BLUE, true);
 
   // Draw the message box
@@ -393,7 +386,7 @@ uint MessageBox(char* title, char* message, byte options) {
   }
 
   // Clear the display and reset the program header
-  TFT_Rectangle_ILI9341.fillScreen(TFT_LANDROVERGREEN);
+  ClearDisplay();
 
   // Evaluate the user choice to the MESSAGE_BOX enum values
   if (messageButtons[result] == "IGNORE") result = BTN_IGNORE;
@@ -423,13 +416,8 @@ void OutputAnalyseCANBusResults() {
     ulong totalCANReceiveTime = 0;
     CANBusFirstRun = false;
 
-    TFT_Rectangle_ILI9341.fillScreen(TFT_LANDROVERGREEN);
-    TFT_Rectangle_ILI9341.setTextColor(TFT_YELLOW, TFT_LANDROVERGREEN, true);
-    TFT_Rectangle_ILI9341.setFreeFont(&MENU_FONT);
-    TFT_Rectangle_ILI9341.drawString(TOP_MENU_PROGRAM_NAME, 0, 0);
-    TFT_Rectangle_ILI9341.setTextDatum(TR_DATUM);
-    TFT_Rectangle_ILI9341.drawString(TOP_MENU_PROGRAM_VERSION, TFT_Rectangle_ILI9341.width(), 0);
-    TFT_Rectangle_ILI9341.setTextDatum(MC_DATUM);
+    // Clear the display and reset the program header
+    ClearDisplay();
     TFT_Rectangle_ILI9341.setTextColor(TFT_YELLOW, TFT_BLUE, true);
 
     TFT_Rectangle_ILI9341.setTextFont(2);
@@ -580,7 +568,7 @@ void OutputAnalyseCANBusResults() {
   // TODO messageBox() Code needs to return values that corrisond to enum MESSAGE_BOX regardless of number of buttons displayed
   else if (result == BTN_CANCEL) {
     // Dislpay Root Menu
-    drawHorizontalMenu(TOP_MENU_PROGRAM_NAME, TOP_MENU_PROGRAM_VERSION, TOP_MENU_Y_OFFSET, MENU_FONT);
+    drawHorizontalMenu(TOP_MENU_Y_OFFSET, MENU_FONT);
     return;
   }
 
@@ -622,13 +610,11 @@ void setup() {
   TFT_Rectangle_ILI9341.setRotation(3);
   TFTRectangleILI9341TouchCalibrate();
 
-  // Prepare display after calibration
-  TFT_Rectangle_ILI9341.setRotation(3);
-  TFT_Rectangle_ILI9341.fillScreen(TFT_LANDROVERGREEN);
-  TFT_Rectangle_ILI9341.setTextColor(TFT_WHITE, TFT_LANDROVERGREEN, true);
+  // Clear the display and reset the program header
+  ClearDisplay();
 
   // Draw the initial Title and Menu
-  drawHorizontalMenu(TOP_MENU_PROGRAM_NAME, TOP_MENU_PROGRAM_VERSION, TOP_MENU_Y_OFFSET, MENU_FONT);
+  drawHorizontalMenu(TOP_MENU_Y_OFFSET, MENU_FONT);
 }
 
 
@@ -952,16 +938,32 @@ void TFTRectangleILI9341TouchCalibrate() {
 }
 
 
-// Draw a menu along the top of the TFT Display (320 x 240) Rotation 3
-// Menu options are drawn in a line across the top of the screen
-// Contents based on the current menu defined by menu structures
-void drawHorizontalMenu(String menuHeader, String codeVersion, int yOffset, GFXfont menuFont) {
+// Clears the display and places the Program Name and Version at the top of the display
+// Sets the rotation to 3, textColor to TFT_WHITE, TFT_LANDROVERGREEN, true
+// Sets font to MENU_FONT & TextDatum(MC_DATUM)
+// Requires FONT_2 to be loaded (header font)
+void ClearDisplay() {
+  TFT_Rectangle_ILI9341.setRotation(3);
   TFT_Rectangle_ILI9341.fillScreen(TFT_LANDROVERGREEN);
   TFT_Rectangle_ILI9341.setTextColor(TFT_WHITE, TFT_LANDROVERGREEN, true);
   TFT_Rectangle_ILI9341.setTextDatum(TL_DATUM);
-  TFT_Rectangle_ILI9341.setFreeFont(&menuFont);                       // Must set menu font for following calculations
+  TFT_Rectangle_ILI9341.drawString(TOP_MENU_PROGRAM_NAME, 0, 0, TOP_MENU_FONT);
+  TFT_Rectangle_ILI9341.setTextDatum(TR_DATUM);
+  TFT_Rectangle_ILI9341.drawString(TOP_MENU_PROGRAM_VERSION, TFT_Rectangle_ILI9341.width(), 0, TOP_MENU_FONT);
+  TFT_Rectangle_ILI9341.setTextDatum(MC_DATUM);
+  TFT_Rectangle_ILI9341.setFreeFont(&MENU_FONT);
+}
+
+
+// Draw a menu along the top of the TFT Display (320 x 240) Rotation 3
+// Menu options are drawn in a line across the top of the screen
+// Contents based on the current menu defined by menu structures
+void drawHorizontalMenu(int yOffset, GFXfont menuFont) {
+  // Clear the display and reset the program header
+  ClearDisplay();
 
   // Determine the maximum number of characters in a button so we can calculate the button width correctly
+  TFT_Rectangle_ILI9341.setFreeFont(&menuFont);                       // Must set menu font for following calculations
   byte maxChars = 0;
   menuButtons = 0;
   while (menu[menuButtons].text) {
@@ -975,12 +977,6 @@ void drawHorizontalMenu(String menuHeader, String codeVersion, int yOffset, GFXf
   int yButtonMiddle = TFT_Rectangle_ILI9341.fontHeight() + yOffset;
   int xButtonWidth = fontWidth * maxChars;
   int yButtonHeight = TFT_Rectangle_ILI9341.fontHeight() * 1;
-
-  // Draw the menu header
-  TFT_Rectangle_ILI9341.drawString(menuHeader, 0, 0);
-  TFT_Rectangle_ILI9341.setTextDatum(TR_DATUM);
-  TFT_Rectangle_ILI9341.drawString(codeVersion, TFT_Rectangle_ILI9341.width(), 0);
-  TFT_Rectangle_ILI9341.setTextDatum(MC_DATUM);
 
   // Draw the menu buttons
   TFT_Rectangle_ILI9341.setFreeFont(&menuFont);
@@ -1005,13 +1001,12 @@ void drawHorizontalMenu(String menuHeader, String codeVersion, int yOffset, GFXf
 // Menu options are drawn in a line down the screen and presented as buttons
 // Contents based on the current menu defined by menu structures
 void drawVerticalMenu(int yOffset, GFXfont headerFont, GFXfont menuFont) {
-  TFT_Rectangle_ILI9341.fillScreen(TFT_LANDROVERGREEN);
-  TFT_Rectangle_ILI9341.setTextColor(TFT_WHITE, TFT_LANDROVERGREEN, true);
-  TFT_Rectangle_ILI9341.setTextDatum(MC_DATUM);
-  TFT_Rectangle_ILI9341.setFreeFont(&menuFont);                       // Must set menu font for following calculations
+  // Clear the display and reset the program header
+  ClearDisplay();
 
   // Determine the maximum number of characters in a button so we can calculate the 
-  //button width correctly and starting position of the buttons in the menu structure
+  // button width correctly and starting position of the buttons in the menu structure
+  TFT_Rectangle_ILI9341.setFreeFont(&menuFont);                       // Must set menu font for following calculations
   byte maxChars = 0;
   byte menuPosition = 0;
   menuButtons = 0;
@@ -1101,12 +1096,14 @@ void processMenu() {
       if (M == menu[b + menuButtonsPos].action) {                     // User selection required another menu
         menu = menu[b + menuButtonsPos].menu;
         drawVerticalMenu(MENU_Y_OFFSET, MENU_BOLD_FONT, MENU_FONT);
+        return;
       }
       else if (A == menu[b + menuButtonsPos].action) {                // User selection calls a code function
         menu[b + menuButtonsPos].func(menu[b + menuButtonsPos].arg);
 
         menu = menuRoot;                                              // After the code function returns jump back to the root menu
-        drawHorizontalMenu(TOP_MENU_PROGRAM_NAME, TOP_MENU_PROGRAM_VERSION, TOP_MENU_Y_OFFSET, MENU_FONT);
+        drawHorizontalMenu(TOP_MENU_Y_OFFSET, MENU_FONT);
+        return;
       }
     }
   }

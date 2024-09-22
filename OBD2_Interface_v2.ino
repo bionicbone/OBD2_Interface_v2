@@ -817,7 +817,7 @@ void ProcessMenu(uint8_t btnNumber, uint8_t menuBtnStartPos) {
 
 
 // Displays a message box on the display and allows the user to respond
-uint16_t MessageBox(char* title, char* message, uint8_t options) {
+uint16_t MessageBox(const char* title, const char* message, uint8_t options) {
   debugLoop("Called\n");
   uint16_t result = 0;
   uint16_t boxX = TFT_Rectangle_ILI9341.width() * 0.1;
@@ -877,20 +877,19 @@ uint16_t MessageBox(char* title, char* message, uint8_t options) {
 
   // Work out how many buttons we will need and their text
   uint8_t numberOfOptionButtons = 0;
-  char* messageButtons[3] = { "", "", "" };
+  const char* messageBtnText[3] = { "","","" };
   uint16_t messageButtonPos[3] = { 0,0,0 };
 
-  messageButtons[numberOfOptionButtons] = "OK";                       // Always required
+  messageBtnText[numberOfOptionButtons] = "OK";                      // Always required
   numberOfOptionButtons++;
-  if (options & BTN_IGNORE) { messageButtons[numberOfOptionButtons] = "IGNORE"; numberOfOptionButtons++; }
-  if (options & BTN_CANCEL) { messageButtons[numberOfOptionButtons] = "CANCEL"; numberOfOptionButtons++; }
+  if (options & BTN_IGNORE) { messageBtnText[numberOfOptionButtons] = "IGNORE"; numberOfOptionButtons++; }
+  if (options & BTN_CANCEL) { messageBtnText[numberOfOptionButtons] = "CANCEL"; numberOfOptionButtons++; }
 
   debugLoop("MessageBox numberOfOptionButtons = %d", numberOfOptionButtons);
 
   // Draw the buttons
   uint8_t menuButtons = 0;
   char handler[1] = "";
-  uint16_t xButtonMiddle = 0;
   uint16_t xButtonWidth = (boxWidth / 3) * 0.95;
   uint16_t yButtonHeight = TFT_Rectangle_ILI9341.fontHeight() * 1.2;
   uint16_t yButtonMiddle = boxY + boxHeight - yButtonHeight * 0.75;
@@ -908,14 +907,14 @@ uint16_t MessageBox(char* title, char* message, uint8_t options) {
   }
 
   for (uint16_t i = 0; i < numberOfOptionButtons; i++) {
-    btnText[menuButtons] = messageButtons[menuButtons];               // Must capture btnText for the ProcessButtons() function
+    btnText[menuButtons] = messageBtnText[menuButtons];               // Must capture btnText for the ProcessButtons() function
     btnMenu[menuButtons].initButton(&TFT_Rectangle_ILI9341,
       messageButtonPos[i],
       yButtonMiddle,
       xButtonWidth,
       yButtonHeight,
       TFT_YELLOW, TFT_BLUE, TFT_YELLOW, handler, 1);                  // initButton limits the amount of text drawn, draw text in the drawButton() function
-    btnMenu[menuButtons].drawButton(false, messageButtons[menuButtons]);// Specifiy the text for the button because initButton will not display the full text length
+    btnMenu[menuButtons].drawButton(false, messageBtnText[menuButtons]);// Specifiy the text for the button because initButton will not display the full text length
     btnMenu[menuButtons].press(false);                                // Because I am reusing buttons it is important to tell the button it is NOT pressed
     menuButtons++;
   }
@@ -929,8 +928,10 @@ uint16_t MessageBox(char* title, char* message, uint8_t options) {
   ClearDisplay();
 
   // Evaluate the user choice to the MESSAGE_BOX enum values
-  if (messageButtons[result] == "IGNORE") result = BTN_IGNORE;
-  else if (messageButtons[result] == "CANCEL") result = BTN_CANCEL;
+  const char* helper1 = "IGNORE";
+  const char* helper2 = "CANCEL";
+  if (messageBtnText[result] == helper1) result = BTN_IGNORE;
+  else if (messageBtnText[result] == helper2) result = BTN_CANCEL;
 
   return result;
 }
@@ -1141,15 +1142,15 @@ void OutputAnalyseCANBusResults() {
     uint16_t yButtonHeight = TFT_Rectangle_ILI9341.fontHeight() * 1.2;
     uint16_t xButtonMiddle = TFT_Rectangle_ILI9341.width() - (xButtonWidth / 2);
     uint16_t yButtonMiddle = TFT_Rectangle_ILI9341.height() - (yButtonHeight / 2);
-    char* messageButtons[1] = { "OK" };
-    btnText[0] = messageButtons[0];                                   // Must capture btnText for the ProcessButtons() function
+    const char* messageBtnText[1] = { "OK" };
+    btnText[0] = messageBtnText[0];                                   // Must capture btnText for the ProcessButtons() function
     btnMenu[0].initButton(&TFT_Rectangle_ILI9341,
       xButtonMiddle,
       yButtonMiddle,
       xButtonWidth,
       yButtonHeight,
       TFT_YELLOW, TFT_BLUE, TFT_YELLOW, handler, 1);                  // initButton limits the amount of text drawn, draw text in the drawButton() function
-    btnMenu[0].drawButton(false, messageButtons[0]);                  // Specifiy the text for the button because initButton will not display the full text length
+    btnMenu[0].drawButton(false, messageBtnText[0]);                  // Specifiy the text for the button because initButton will not display the full text length
     btnMenu[0].press(false);                                          // Because I am reusing buttons it is important to tell the button it is NOT pressed
 
     result = ProcessButtons(MESSAGE_BOX, 1);

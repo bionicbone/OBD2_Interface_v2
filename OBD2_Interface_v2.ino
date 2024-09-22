@@ -133,6 +133,9 @@ TFT_eSPI TFT_Rectangle_ILI9341 = TFT_eSPI();
 
 */
 
+// Enums
+enum { MENU, MESSAGE_BOX };
+
 // Constants & ESP32-S3 pin declarations
 const auto          STANDARD_SERIAL_OUTPUT_BAUD = 2000000;            // Must be at least 2,000,000 to keep up with Land Rover Freelander 2 
 const auto          SD_PORT_HARDWARE_SERIAL_NUMBER = 1;               // The OpenLager will be connected to Hardware Serial Port 1
@@ -157,8 +160,7 @@ bool                CANBusFirstRun = false;                           // Will se
 ulong               totalCANReceiveTimeTimer = 0;                     // Times how long we have been receiving CAN Frames
 uint                numberOfCANFramesReceived[2] = { 0,0 };           // Counts the number of CAN Frames received
 byte                menuCurrentlyDisplayed = 0;                       // Tracks the menu displayed
-byte                menuButtons = 0;                                  // menuButtons controls how many buttons are currently in use, updated when menu is drawn
-byte                menuButtonsPos = 0;                               // menuButtonsPos controls the line in the menu struct of the first button, updated when menu is drawn
+const char*         btnText[] = { "","","","","" };                   // Text displayed in each valid button, used for the inversing
 enum                OUTPUT_TYPES { Output_Analyse_CAN_Bus_Results, Output_Format_CanDrive, Output_Format_SavvyCan, Output_SD_Card_SavvyCAN, Output_WiFi};
 byte                outputFormat = false;                             // Tracks the required output type
 ulong               upTimer = micros();                               // Tracks how long the program has been running, used in the outputs
@@ -166,10 +168,10 @@ ulong               upTimer = micros();                               // Tracks 
 
 // Sets the new output requirements
 void actionOutputChange(int arg) {
+  Serial.printf("actionOutputChange Called\n");
   outputFormat = arg;
   switch (outputFormat) {
   case Output_Analyse_CAN_Bus_Results:
-    Serial.printf("actionOutputChange Case OK\n");
     OutputAnalyseCANBusResults();
     break;
 
@@ -287,6 +289,8 @@ void setup() {
 
 
 void loop() {
+  Serial.printf("loop() Called");
+  delay(1000);
 
   //while (numberOfCANFramesReceived[0] < 10000) {
 
@@ -310,13 +314,10 @@ void loop() {
   //    }
   //  }
 
-  //  processMenu();
   //}
  
   
   //TemporaryOutputResults();
-
-  processMenu();
 
 }
 
@@ -633,12 +634,12 @@ void drawHorizontalMenu(int yOffset, GFXfont menuFont) {
   // Determine the maximum number of characters in a button so we can calculate the button width correctly
   TFT_Rectangle_ILI9341.setFreeFont(&menuFont);                       // Must set menu font for following calculations
   byte maxChars = 0;
-  menuButtons = 0;
+  uint8_t menuButtons = 0;
   while (menu[menuButtons].text) {
     if (maxChars < String(menu[menuButtons].text).length()) maxChars = String(menu[menuButtons].text).length();
     menuButtons++;
   }
-  if (maxChars < 10) maxChars = 10;                                   // Minimum button size so user can easily select it
+  if (maxChars < 10) maxChars = 10;                                   // Draw a minimum button size so user can easily select it
 
   // Calculate the basic button positions
   int fontWidth = 10; // take a default value for now
@@ -649,9 +650,10 @@ void drawHorizontalMenu(int yOffset, GFXfont menuFont) {
   // Draw the menu buttons
   TFT_Rectangle_ILI9341.setFreeFont(&menuFont);
   char handler[1] = "";
-  menuButtons = 0;                                                    // Reset the Global Variable that tracks the number of buttons that will be active on the new menu
-  menuButtonsPos = 0;
+  uint8_t menuBtnStartPos = 0;
+  menuButtons = 0;                                                    // Reset the number of buttons that will be active on the new menu
   while (menu[menuButtons].text) {
+    btnText[menuButtons] = menu[menuButtons].text;                    // Must capture btnText for the ProcessButtons() function
     btnMenu[menuButtons].initButton(&TFT_Rectangle_ILI9341,
       (menuButtons * xButtonWidth) + (menuButtons * 5) + (xButtonWidth / 2),
       yButtonMiddle,
@@ -660,8 +662,9 @@ void drawHorizontalMenu(int yOffset, GFXfont menuFont) {
       TFT_YELLOW, TFT_BLUE, TFT_YELLOW, handler, 1);                  // initButton limits the amount of text drawn, draw text in the drawButton() function
     btnMenu[menuButtons].drawButton(false, menu[menuButtons].text);   // Specifiy the text for the button because initButton will not display the full text length
     btnMenu[menuButtons].press(false);                                // Because I am reusing buttons it is important to tell the button it is NOT pressed
-    menuButtons++;                                                    // Add the button to the Global Variable that tracks the number of active buttons
+    menuButtons++;                                                    // Add the button to the Global Variable that tracks the number of active buttons 
   }
+  ProcessButtons(MENU, menuButtons, menuBtnStartPos);
 }
 
 
@@ -677,12 +680,12 @@ void drawVerticalMenu(int yOffset, GFXfont headerFont, GFXfont menuFont) {
   TFT_Rectangle_ILI9341.setFreeFont(&menuFont);                       // Must set menu font for following calculations
   byte maxChars = 0;
   byte menuPosition = 0;
-  menuButtons = 0;
-  menuButtonsPos = 99;
+  uint8_t menuButtons = 0;
+  uint8_t menuBtnStartPos = 99;
   while (menu[menuPosition].text) {
     if (A == menu[menuPosition].action) {
       if (maxChars < String(menu[menuPosition].text).length()) maxChars = String(menu[menuPosition].text).length();
-      if (menuButtonsPos == 99) menuButtonsPos = menuPosition;        // Capture the position of the first button in the menu structure
+      if (menuBtnStartPos == 99) menuBtnStartPos = menuPosition;      // Capture the position of the first button in the menu structure
       menuButtons++;
     }
     menuPosition++;
@@ -700,7 +703,7 @@ void drawVerticalMenu(int yOffset, GFXfont headerFont, GFXfont menuFont) {
   TFT_Rectangle_ILI9341.setFreeFont(&menuFont);
   char handler[1] = "";
   menuPosition = 0;
-  menuButtons = 0; 
+  menuButtons = 0;
 
   // Reset the Global Variable that tracks the number of buttons that will be active on the new menu
   while (menu[menuPosition].text) {
@@ -712,6 +715,7 @@ void drawVerticalMenu(int yOffset, GFXfont headerFont, GFXfont menuFont) {
     }
     else if (A == menu[menuPosition].action) {
       // Draw the action button
+      btnText[menuButtons] = menu[menuPosition].text;                 // Must capture btnText for the ProcessButtons() function
       btnMenu[menuButtons].initButton(&TFT_Rectangle_ILI9341,
         xButtonMiddle,
         menuButtons * yButtonMiddle + yOffset,
@@ -724,65 +728,82 @@ void drawVerticalMenu(int yOffset, GFXfont headerFont, GFXfont menuFont) {
     }
     menuPosition++;
   }
+  ProcessButtons(MENU, menuButtons, menuBtnStartPos);
 }
 
 
-// Processes the menu buttons currently shown on the display
-// Depending on the menu structure contents this function may
-// display another menu or call another function
-void processMenu() {
+// Checks if any active buttons on the display have been pressed
+// Once called it will wait for a button to be pressed
+// type: 0 = Menu, 1 = MessageBox
+byte ProcessButtons(uint8_t type, uint8_t numberOfButtons) {          // overload
+  byte result = ProcessButtons(type, numberOfButtons, 0);
+  return result;
+}
 
-  uint16_t t_x = 0, t_y = 0;                                          // To store the touch coordinates
+// Checks if any active buttons on the display have been pressed
+// Once called it will wait for a button to be pressed
+// type: 0 = Menu, 1 = MessageBox
+byte ProcessButtons(uint8_t type, uint8_t numberOfButtons, uint8_t menuBtnStartPos) {
 
-  // Pressed will be set true is there is a valid touch on the screen
-  bool pressed = TFT_Rectangle_ILI9341.getTouch(&t_x, &t_y);
+  while (true) {   // for now create an endless loop until a button is pressed
 
-  // Check if any key coordinate boxes contain the touch coordinates
-  for (uint8_t b = 0; b < menuButtons; b++) {
-    if (pressed && btnMenu[b].contains(t_x, t_y)) {
-      btnMenu[b].press(true);                                         // tell the button it is pressed
-    }
-    else {
-      btnMenu[b].press(false);                                        // tell the button it is NOT pressed
-    }
-  }
+    uint16_t t_x = 0, t_y = 0;                                        // To store the touch coordinates
 
-  // Check if any key has changed state
-  for (uint8_t b = 0; b < menuButtons; b++) {
+    // Pressed will be set true is there is a valid touch on the screen
+    bool pressed = TFT_Rectangle_ILI9341.getTouch(&t_x, &t_y);
 
-    TFT_Rectangle_ILI9341.setFreeFont(&MENU_FONT);
-
-    if (btnMenu[b].justPressed()) {
-      btnMenu[b].drawButton(true, menu[b + menuButtonsPos].text);     // draw invert
-      delay(100);                                                     // UI debouncing
-    }
-
-    if (btnMenu[b].justReleased()) {
-      btnMenu[b].drawButton(false, menu[b + menuButtonsPos].text);    // draw normal
-
-      // Process the button press
-      if (M == menu[b + menuButtonsPos].action) {                     // User selection required another menu
-        menu = menu[b + menuButtonsPos].menu;
-        drawVerticalMenu(MENU_Y_OFFSET, MENU_BOLD_FONT, MENU_FONT);
-        return;
+    // Check if any key coordinate boxes contain the touch coordinates
+    for (uint8_t b = 0; b < numberOfButtons; b++) {
+      if (pressed && btnMenu[b].contains(t_x, t_y)) {
+        btnMenu[b].press(true);                                       // tell the button it is pressed
       }
-      else if (A == menu[b + menuButtonsPos].action) {                // User selection calls a code function
-        menu[b + menuButtonsPos].func(menu[b + menuButtonsPos].arg);
+      else {
+        btnMenu[b].press(false);                                      // tell the button it is NOT pressed
+      }
+    }
 
-        menu = menuRoot;                                              // After the code function returns jump back to the root menu
-        drawHorizontalMenu(TOP_MENU_Y_OFFSET, MENU_FONT);
-        return;
+    // Check if any key has changed state
+    for (uint8_t b = 0; b < numberOfButtons; b++) {
+
+      TFT_Rectangle_ILI9341.setFreeFont(&MENU_FONT);
+
+      if (btnMenu[b].justPressed()) {
+        btnMenu[b].drawButton(true, btnText[b]);                      // draw inverted
+        delay(100);                                                   // UI debouncing
+      }
+
+      if (btnMenu[b].justReleased()) {
+        btnMenu[b].drawButton(false, btnText[b]);                     // draw normal
+
+        if (type == MENU) ProcessMenu(b, menuBtnStartPos);
+        return b;
       }
     }
   }
 }
 
+
+// Controls the move to a new menu that will be displayed
+// btnNumber = the button the user pressed
+// menuBtnStartPos = the postion of the first menu option in the menu structure
+void ProcessMenu(uint8_t btnNumber, uint8_t menuBtnStartPos) {
+  if (M == menu[btnNumber + menuBtnStartPos].action) {                // User selection required another menu
+    menu = menu[btnNumber + menuBtnStartPos].menu;
+    drawVerticalMenu(MENU_Y_OFFSET, MENU_BOLD_FONT, MENU_FONT);
+  }
+  else if (A == menu[btnNumber + menuBtnStartPos].action) {           // User selection calls a code function
+    menu[btnNumber + menuBtnStartPos].func(menu[btnNumber + menuBtnStartPos].arg);
+
+    menu = menuRoot;                                                  // After the code function returns jump back to the root menu
+    drawHorizontalMenu(TOP_MENU_Y_OFFSET, MENU_FONT);
+  }
+}
 
 
 enum MESSAGE_BOX { BTN_OK, BTN_IGNORE, BTN_CANCEL };
 // Displays a message box on the display and allows the user to respond
 uint MessageBox(char* title, char* message, byte options) {
-  Serial.printf("MessageBox OK\n");
+  Serial.printf("MessageBox Called\n");
   uint result = 0;
   uint boxX = TFT_Rectangle_ILI9341.width() * 0.1;
   uint boxY = TFT_Rectangle_ILI9341.height() * 0.2 + TOP_MENU_Y_OFFSET;
@@ -807,7 +828,7 @@ uint MessageBox(char* title, char* message, byte options) {
 
   // Split the message into lines and draw
   const int maxLineLength = 30;
-  char lineBuffer[maxLineLength + 1];  // +1 for the null-terminator
+  char lineBuffer[maxLineLength + 1];                                 // +1 for the null-terminator
   int lineLength = 0;
   const char* current = message;
 
@@ -844,17 +865,15 @@ uint MessageBox(char* title, char* message, byte options) {
   char* messageButtons[3] = { "", "", "" };
   uint messageButtonPos[3] = { 0,0,0 };
 
-  Serial.printf("options = %d\n", options);
-
-  messageButtons[numberOfOptionButtons] = "OK";   // Always required
+  messageButtons[numberOfOptionButtons] = "OK";                       // Always required
   numberOfOptionButtons++;
   if (options & BTN_IGNORE) { messageButtons[numberOfOptionButtons] = "IGNORE"; numberOfOptionButtons++; }
   if (options & BTN_CANCEL) { messageButtons[numberOfOptionButtons] = "CANCEL"; numberOfOptionButtons++; }
 
-  Serial.printf("numberOfOptionButtons = %d\n", numberOfOptionButtons);
+  Serial.printf("MessageBox numberOfOptionButtons = %d\n", numberOfOptionButtons);
 
   // Draw the buttons
-  menuButtons = 0;
+  uint8_t menuButtons = 0;
   char handler[1] = "";
   uint xButtonMiddle = 0;
   uint xButtonWidth = (boxWidth / 3) * 0.95;
@@ -874,53 +893,22 @@ uint MessageBox(char* title, char* message, byte options) {
   }
 
   for (uint i = 0; i < numberOfOptionButtons; i++) {
+    btnText[menuButtons] = messageButtons[menuButtons];               // Must capture btnText for the ProcessButtons() function
     btnMenu[menuButtons].initButton(&TFT_Rectangle_ILI9341,
       messageButtonPos[i],
       yButtonMiddle,
       xButtonWidth,
       yButtonHeight,
-      TFT_YELLOW, TFT_BLUE, TFT_YELLOW, handler, 1);                // initButton limits the amount of text drawn, draw text in the drawButton() function
+      TFT_YELLOW, TFT_BLUE, TFT_YELLOW, handler, 1);                  // initButton limits the amount of text drawn, draw text in the drawButton() function
     btnMenu[menuButtons].drawButton(false, messageButtons[menuButtons]);// Specifiy the text for the button because initButton will not display the full text length
-    btnMenu[menuButtons].press(false);                              // Because I am reusing buttons it is important to tell the button it is NOT pressed
+    btnMenu[menuButtons].press(false);                                // Because I am reusing buttons it is important to tell the button it is NOT pressed
     menuButtons++;
   }
 
+  result = ProcessButtons(MESSAGE_BOX, menuButtons);
 
-  // Process the buttons
-  uint16_t t_x = 0, t_y = 0;                                          // To store the touch coordinates
+  Serial.printf("MessageBox result = %d\n", result);
 
-  bool pressed = false;
-  while (!pressed) {
-    while (!pressed) {
-      // Pressed will be set true is there is a valid touch on the screen
-      pressed = TFT_Rectangle_ILI9341.getTouch(&t_x, &t_y);
-
-      // Check if any key coordinate boxes contain the touch coordinates
-      for (uint8_t b = 0; b < menuButtons; b++) {
-        if (pressed && btnMenu[b].contains(t_x, t_y)) {
-          btnMenu[b].press(true);                                         // tell the button it is pressed
-        }
-        else {
-          btnMenu[b].press(false);                                        // tell the button it is NOT pressed
-        }
-      }
-    }
-
-
-    // Check if any key has changed state
-    pressed = false;
-    for (uint8_t b = 0; b < menuButtons; b++) {
-
-      TFT_Rectangle_ILI9341.setFreeFont(&MENU_FONT);
-
-      if (btnMenu[b].justPressed()) {
-        btnMenu[b].drawButton(true, messageButtons[b]);     // draw invert
-        result = b;
-        pressed = true;                  // Signal that a button was pressed and not just the screen in general
-        delay(100);                                                     // UI debouncing
-      }
-    }
-  }
 
   // Clear the display and reset the program header
   ClearDisplay();
@@ -931,7 +919,6 @@ uint MessageBox(char* title, char* message, byte options) {
 
   return result;
 }
-
 
 
 // Directs the required output to the correct output function
@@ -949,7 +936,6 @@ void output(ulong rxId, uint8_t len, uint8_t rxBuf[], uint8_t MCP2515number) {
 }
 
 
-
 // Performs analysis on both CAN Interfaces to determine if the OBD2_Interface can sucessfully read both at the same time
 void OutputAnalyseCANBusResults() {
 
@@ -960,10 +946,10 @@ void OutputAnalyseCANBusResults() {
     125kbps CAN bus will fill in a minimum period of 2664us
   */
 
-  Serial.printf("OutputAnalyseCANBusResults OK\n");
+  Serial.printf("OutputAnalyseCANBusResults Called\n");
   uint result = MessageBox("Analyse CAN Bus Capacity", "Ensure the OBD2 device is connected to the car with the engine running.", BTN_OK + BTN_CANCEL);
 
-  Serial.print("Returned Option "); Serial.println(result);
+  Serial.print("MessageBox Returned Option "); Serial.println(result);
 
   if (result == BTN_OK) {
     uint cfps[2] = { 0,0 };
@@ -1122,11 +1108,12 @@ void OutputAnalyseCANBusResults() {
   // TODO messageBox() Code needs to return values that corrisond to enum MESSAGE_BOX regardless of number of buttons displayed
   else if (result == BTN_CANCEL) {
     // Dislpay Root Menu
+    menu = menuRoot;
     drawHorizontalMenu(TOP_MENU_Y_OFFSET, MENU_FONT);
     return;
   }
 
-  while (true);
+  while (true) { Serial.printf("OutputAnalyseCANBusResults MessageBox result"); delay(1000); }
 }
 
 

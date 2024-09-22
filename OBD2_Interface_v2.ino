@@ -539,8 +539,6 @@ void TemporaryOutputResults() {
 
   SD_Port.flush();
   SD_Port.end();
-
-  while (true);
 }
 
 
@@ -948,19 +946,25 @@ void OutputAnalyseCANBusResults() {
     125kbps CAN bus will fill in a minimum period of 2664us
   */
 
-  debugLoop("Called");
+  #define MEASURE_TIME 10000000                                           // 10000000 for live, 1000000 to TESTING
+#if MEASURE_TIME != 10000000
+  #warning "OutputAnalyseCANBusResults() IS NOT EQUAL to 10000000"
+#endif
+
+    debugLoop("Called");
   uint16_t result = MessageBox("Analyse CAN Bus Capacity", "Ensure the OBD2 device is connected to the car with the engine running.", BTN_OK + BTN_CANCEL);
 
   debugLoop("MessageBox Returned Button %d", result);
 
   if (result == BTN_OK) {
+    numberOfCANFramesReceived[0] = 0;
+    numberOfCANFramesReceived[1] = 0;
     uint16_t cfps[2] = { 0,0 };
     uint32_t totalCANReceiveTime = 0;
     CANBusFirstRun = false;
 
     // Clear the display and reset the program header
     ClearDisplay();
-    TFT_Rectangle_ILI9341.setTextColor(TFT_YELLOW, TFT_BLUE, true);
 
     TFT_Rectangle_ILI9341.setTextFont(2);
     TFT_Rectangle_ILI9341.setTextColor(TFT_BLACK);
@@ -995,12 +999,15 @@ void OutputAnalyseCANBusResults() {
     TFT_Rectangle_ILI9341.drawString("Passed", tableX + 2, tableY + 60);
 
     TFT_Rectangle_ILI9341.setTextColor(TFT_GREEN);
-    TFT_Rectangle_ILI9341.drawString("* Calculated as 119 bits per CAN Frame", tableX + 2, TFT_Rectangle_ILI9341.height() - 10, 1);
+    TFT_Rectangle_ILI9341.drawCentreString("Performs analysis on both CAN Interfaces", 160, 25, 2);
+    TFT_Rectangle_ILI9341.drawCentreString("to determine if the OBD2_Interface can", 160, 45, 2);
+    TFT_Rectangle_ILI9341.drawCentreString("sucessfully read both at the same time.", 160, 65, 2);
+    TFT_Rectangle_ILI9341.drawString("* Calculated as 119 bits per CAN Frame", 2, TFT_Rectangle_ILI9341.height() - 10, 1);
     TFT_Rectangle_ILI9341.setTextColor(TFT_BLACK);
 
     // Check CAN Interface 0 CAN frames per second (cfps)
     totalCANReceiveTimeTimer = micros();                              // Set the timer for calculating the CAN Frames per Second (cfps) 
-    while (micros() - totalCANReceiveTimeTimer < 10000000) {          // Measure for 10 seconds
+    while (micros() - totalCANReceiveTimeTimer < MEASURE_TIME) {          // Measure for 10 seconds
       if (CANBusCheckRecieved(mcp2515_0)) {
         if (CANBusReadCANData(mcp2515_0)) {
           CANFrameProcessing(0);
@@ -1024,7 +1031,7 @@ void OutputAnalyseCANBusResults() {
 
     // Check CAN Interface 1 CAN frames per second (cfps)
     totalCANReceiveTimeTimer = micros();                              // Set the timer for calculating the CAN Frames per Second (cfps) 
-    while (micros() - totalCANReceiveTimeTimer < 10000000) {          // Measure for 10 seconds
+    while (micros() - totalCANReceiveTimeTimer < MEASURE_TIME) {          // Measure for 10 seconds
       if (CANBusCheckRecieved(mcp2515_1)) {
         if (CANBusReadCANData(mcp2515_1)) {
           CANFrameProcessing(1);
@@ -1044,14 +1051,26 @@ void OutputAnalyseCANBusResults() {
     // Update table
     TFT_Rectangle_ILI9341.drawCentreString(String(percentageOfBusCapacity) + "%", tableX + (tableFontW * 12), tableY + 40, 2);
     TFT_Rectangle_ILI9341.drawCentreString(String(cfps[1]) + "cfps", tableX + (tableFontW * 22), tableY + 40, 2);
-    TFT_Rectangle_ILI9341.drawCentreString("Yes", tableX + (tableFontW * 12), tableY + 60, 2);
-    TFT_Rectangle_ILI9341.drawCentreString("Yes", tableX + (tableFontW * 22), tableY + 60, 2);
+
+    // If cfps[] is Zero then we should fail these tests (i.e. no CAN Data detected)
+    if (cfps[0] != 0) {
+      TFT_Rectangle_ILI9341.drawCentreString("Yes", tableX + (tableFontW * 12), tableY + 60, 2);
+    }
+    else {
+      TFT_Rectangle_ILI9341.drawCentreString("No", tableX + (tableFontW * 12), tableY + 60, 2);
+    }
+    if (cfps[1] != 0) {
+      TFT_Rectangle_ILI9341.drawCentreString("Yes", tableX + (tableFontW * 22), tableY + 60, 2);
+    }
+    else {
+      TFT_Rectangle_ILI9341.drawCentreString("No", tableX + (tableFontW * 22), tableY + 60, 2);
+    }
 
     // Check both CAN Interfaces at the same time for CAN frames per second (cfps)
     numberOfCANFramesReceived[0] = 0;
     numberOfCANFramesReceived[1] = 0;
     totalCANReceiveTimeTimer = micros();                              // Set the timer for calculating the CAN Frames per Second (cfps) 
-    while (micros() - totalCANReceiveTimeTimer < 10000000) {          // Measure for 10 seconds
+    while (micros() - totalCANReceiveTimeTimer < MEASURE_TIME) {          // Measure for 10 seconds
       // Check the 500kbps bus as priority over 125kbps because 500kbps is faster and the buffers fill significantly more quickly
       if (CANBusCheckRecieved(mcp2515_0)) {
         if (CANBusReadCANData(mcp2515_0)) {
@@ -1079,7 +1098,16 @@ void OutputAnalyseCANBusResults() {
     debugLoop("cfpsCompare = %d", cfpsCompare);
     debugLoop("cfps[0] = %d", cfps[0]);
 
-    if ((cfps[0] * 0.99 <= cfpsCompare) || (cfps[0] * 1.01 >= cfpsCompare)) { passed = false; }
+    // If no CAN Bus data then fail the test
+    if (cfps[0] == 0 || cfps[1] == 0) {
+      passed = false;
+      TFT_Rectangle_ILI9341.setTextColor(TFT_RED, TFT_YELLOW, true);
+      TFT_Rectangle_ILI9341.drawString("ERROR: *!* NO CAN BUS DATA RECEIVED", 2, TFT_Rectangle_ILI9341.height() - 30, 2);
+      TFT_Rectangle_ILI9341.setTextColor(TFT_BLACK, TFT_GREEN, true);
+    }
+
+    // If cfps for Dual CAN Bus reading is ont within 1% of the cfps for Single CAN Bus then fail the test 
+    if ((cfpsCompare < cfps[0] * 0.99) || (cfpsCompare > cfps[0] * 1.01)) { passed = false; }
     debugLoop("passed = %d", passed);
 
     TFT_Rectangle_ILI9341.drawCentreString(String(cfpsCompare) + "cfps", tableX + (tableFontW * 31), tableY + 20, 2);
@@ -1092,8 +1120,8 @@ void OutputAnalyseCANBusResults() {
     debugLoop("cfpsCompare = %d", cfpsCompare);
     debugLoop("cfps[1] = %d", cfps[1]);
 
-    if (((float)cfps[1] * 0.99 <= cfpsCompare) || ((float)cfps[1] * 1.01 >= cfpsCompare)) { passed = false; }
-
+    // If cfps for Dual CAN Bus reading is ont within 1% of the cfps for Single CAN Bus then fail the test 
+    if ((cfpsCompare < cfps[1] * 0.99) || (cfpsCompare > cfps[1] * 1.01)) { passed = false; }
     debugLoop("passed = %d", passed);
 
     TFT_Rectangle_ILI9341.drawCentreString(String(cfpsCompare) + "cfps", tableX + (tableFontW * 31), tableY + 40, 2);
@@ -1101,10 +1129,31 @@ void OutputAnalyseCANBusResults() {
       TFT_Rectangle_ILI9341.drawCentreString("Yes", tableX + (tableFontW * 31), tableY + 60, 2);
     }
     else {
-      TFT_Rectangle_ILI9341.drawCentreString("Yes", tableX + (tableFontW * 31), tableY + 60, 2);
+      TFT_Rectangle_ILI9341.drawCentreString("No", tableX + (tableFontW * 31), tableY + 60, 2);
     }
 
     TemporaryOutputResults();
+
+    // Create an OK button to exit
+    TFT_Rectangle_ILI9341.setFreeFont(&MENU_FONT);                    // Set the normal button font
+    char handler[1] = "";
+    uint16_t xButtonWidth = TFT_Rectangle_ILI9341.textWidth("A") * 3;
+    uint16_t yButtonHeight = TFT_Rectangle_ILI9341.fontHeight() * 1.2;
+    uint16_t xButtonMiddle = TFT_Rectangle_ILI9341.width() - (xButtonWidth / 2);
+    uint16_t yButtonMiddle = TFT_Rectangle_ILI9341.height() - (yButtonHeight / 2);
+    char* messageButtons[1] = { "OK" };
+    btnText[0] = messageButtons[0];                                   // Must capture btnText for the ProcessButtons() function
+    btnMenu[0].initButton(&TFT_Rectangle_ILI9341,
+      xButtonMiddle,
+      yButtonMiddle,
+      xButtonWidth,
+      yButtonHeight,
+      TFT_YELLOW, TFT_BLUE, TFT_YELLOW, handler, 1);                  // initButton limits the amount of text drawn, draw text in the drawButton() function
+    btnMenu[0].drawButton(false, messageButtons[0]);                  // Specifiy the text for the button because initButton will not display the full text length
+    btnMenu[0].press(false);                                          // Because I am reusing buttons it is important to tell the button it is NOT pressed
+
+    result = ProcessButtons(MESSAGE_BOX, 1);
+    return;
   }
   // TODO messageBox() Code needs to return values that corrisond to enum MESSAGE_BOX regardless of number of buttons displayed
   else if (result == BTN_CANCEL) {

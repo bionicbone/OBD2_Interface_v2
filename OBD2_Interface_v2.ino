@@ -134,41 +134,43 @@ TFT_eSPI TFT_Rectangle_ILI9341 = TFT_eSPI();
 */
 
 
-// Debugging Options (ESP32 Version)
-//#define debugLoop(fmt, ...)
-#define debugLoop(fmt, ...) Serial.printf("%s: " fmt "\r\n", __func__, ##__VA_ARGS__)  // ESP
+// Debugging Options (ESP32 Version) - Choose at least one!
+//#define debugLoop(fmt, ...) // Serial Debugging Off
+#define debugLoop(fmt, ...) Serial.printf("%s: " fmt "\r\n", __func__, ##__VA_ARGS__)  // Serial Debugging On
 
 // Enums
-enum { MENU, MESSAGE_BOX };
+enum          MESSAGE_BOX_BUTTONS { BTN_OK, BTN_IGNORE, BTN_CANCEL };
+enum          BUTTON_TYPES { MENU, MESSAGE_BOX };
+enum          OUTPUT_TYPES { Output_Analyse_CAN_Bus_Results, Output_Format_CanDrive, Output_Format_SavvyCan, Output_SD_Card_SavvyCAN, Output_WiFi };
+
 
 // Constants & ESP32-S3 pin declarations
-const auto          STANDARD_SERIAL_OUTPUT_BAUD = 2000000;            // Must be at least 2,000,000 to keep up with Land Rover Freelander 2 
-const auto          SD_PORT_HARDWARE_SERIAL_NUMBER = 1;               // The OpenLager will be connected to Hardware Serial Port 1
-const auto          SD_CARD_ESP32_S3_TX_PIN = 9;                      // The OpenLager Rx pin will be connected to this ESP32-S3 Tx pin
-const auto          CAN_BUS_0_CS_PIN = 14;                            // The CS pin of the MCP2515 (High Speed CAN Bus 500kbps) will be connected to this ESP32-S3 pin
-const auto          CAN_BUS_1_CS_PIN = 10;                            // The CS pin of the MCP2515 (Medium Speed CAN Bus 125kbps) will be connected to this ESP32-S3 pin
-const auto          TFT_LANDROVERGREEN = 12832;                       // A Land Rover Green RBG colour
-const auto          TFT_Rectangle_ILI9341_LEDPIN = 39;                // The ILI9341 display LED PIN will be connected to this ESP32-S3 pin
-const auto          CALIBRATION_FILE = "/TouchCalData1";              // This is the file name used to store the touch display calibration data, must start with /
-const auto          REPEAT_CALIBRATION = false;                       // Set to true to always calibrate / recalibrate the touch display
-const auto          TOP_MENU_FONT = 2;                                // Font used for selection menu that is at the top of the display
-const auto          TOP_MENU_Y_OFFSET = 10;                           // Used to position the top menu just under the Program Title
-const auto          TOP_MENU_PROGRAM_NAME = "OBD2 Interface by Bionicbone"; // Will be displayed at the top of the display
-const auto          TOP_MENU_PROGRAM_VERSION = "v2.0.0";              // Will be displayed at the top of the display
-const auto          MENU_BOLD_FONT = FreeSansBoldOblique9pt7b;        // Font used for selection menus headers
-const auto          MENU_FONT = FreeSansOblique9pt7b;                 // Font used for selection menus buttons
-const auto          MENU_Y_OFFSET = 68;                               // Used to position the menu just under the Menu Header
+const auto    STANDARD_SERIAL_OUTPUT_BAUD = 2000000;                  // Must be at least 2,000,000 to keep up with Land Rover Freelander 2 
+const auto    SD_PORT_HARDWARE_SERIAL_NUMBER = 1;                     // The OpenLager will be connected to Hardware Serial Port 1
+const auto    SD_CARD_ESP32_S3_TX_PIN = 9;                            // The OpenLager Rx pin will be connected to this ESP32-S3 Tx pin
+const auto    CAN_BUS_0_CS_PIN = 14;                                  // The CS pin of the MCP2515 (High Speed CAN Bus 500kbps) will be connected to this ESP32-S3 pin
+const auto    CAN_BUS_1_CS_PIN = 10;                                  // The CS pin of the MCP2515 (Medium Speed CAN Bus 125kbps) will be connected to this ESP32-S3 pin
+const auto    TFT_LANDROVERGREEN = 12832;                             // A Land Rover Green RBG colour
+const auto    TFT_Rectangle_ILI9341_LEDPIN = 39;                      // The ILI9341 display LED PIN will be connected to this ESP32-S3 pin
+const auto    CALIBRATION_FILE = "/TouchCalData1";                    // This is the file name used to store the touch display calibration data, must start with /
+const auto    REPEAT_CALIBRATION = false;                             // Set to true to always calibrate / recalibrate the touch display
+const auto    TOP_MENU_FONT = 2;                                      // Font used for selection menu that is at the top of the display
+const auto    TOP_MENU_Y_OFFSET = 10;                                 // Used to position the top menu just under the Program Title
+const auto    TOP_MENU_PROGRAM_NAME = "OBD2 Interface by Bionicbone"; // Will be displayed at the top of the display
+const auto    TOP_MENU_PROGRAM_VERSION = "v2.0.0";                    // Will be displayed at the top of the display
+const auto    MENU_BOLD_FONT = FreeSansBoldOblique9pt7b;              // Font used for selection menus headers
+const auto    MENU_FONT = FreeSansOblique9pt7b;                       // Font used for selection menus buttons
+const auto    MENU_Y_OFFSET = 68;                                     // Used to position the menu just under the Menu Header
 
 // Control variables
-bool                sdCardFirstRun = false;                           // Will set to true when SD Card initialises, trigger for SavvyCAN header
-bool                CANBusFirstRun = false;                           // Will set to true when CAN Bus mode changes, trigger for cfps timer to start
-ulong               totalCANReceiveTimeTimer = 0;                     // Times how long we have been receiving CAN Frames
-uint                numberOfCANFramesReceived[2] = { 0,0 };           // Counts the number of CAN Frames received
-byte                menuCurrentlyDisplayed = 0;                       // Tracks the menu displayed
-const char*         btnText[] = { "","","","","" };                   // Text displayed in each valid button, used for the inversing
-enum                OUTPUT_TYPES { Output_Analyse_CAN_Bus_Results, Output_Format_CanDrive, Output_Format_SavvyCan, Output_SD_Card_SavvyCAN, Output_WiFi};
-byte                outputFormat = false;                             // Tracks the required output type
-ulong               upTimer = micros();                               // Tracks how long the program has been running, used in the outputs
+bool          sdCardFirstRun = false;                                 // Will set to true when SD Card initialises, trigger for SavvyCAN header
+bool          CANBusFirstRun = false;                                 // Will set to true when CAN Bus mode changes, trigger for cfps timer to start
+ulong         totalCANReceiveTimeTimer = 0;                           // Times how long we have been receiving CAN Frames
+uint          numberOfCANFramesReceived[2] = { 0,0 };                 // Counts the number of CAN Frames received
+byte          menuCurrentlyDisplayed = 0;                             // Tracks the menu displayed
+const char*   btnText[] = { "","","","","" };                         // Text displayed in each valid button, used for the inversing
+byte          outputFormat = false;                                   // Tracks the required output type
+ulong         upTimer = micros();                                     // Tracks how long the program has been running, used in the outputs
 
 
 // Sets the new output requirements
@@ -816,7 +818,6 @@ void ProcessMenu(uint8_t btnNumber, uint8_t menuBtnStartPos) {
 }
 
 
-enum MESSAGE_BOX { BTN_OK, BTN_IGNORE, BTN_CANCEL };
 // Displays a message box on the display and allows the user to respond
 uint MessageBox(char* title, char* message, byte options) {
   debugLoop("Called\n");

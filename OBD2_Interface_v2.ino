@@ -82,7 +82,6 @@ const String LIBRARY_NAME = "arduino_mpc2515 (by autowp)";
 #include <SPIFFS.h>                                                   // TFT_eSPI requires this arduino-ESP32 core library
 #include <vfs_api.h>                                                  // TFT_eSPI requires this arduino-ESP32 core library
 #include <FSImpl.h>                                                   // TFT_eSPI requires this arduino-ESP32 core library
-// TODO  For the OBD2_Interfacce_v2 do I really need to load all the fonts, see Setup42_ILI9341_ESP32.h ?
 TFT_eSPI TFT_Rectangle_ILI9341 = TFT_eSPI();
 
 // include the arduino-ESP32 core SPI library which is used for the MCP2515 controllers and the ILI9341 Display
@@ -257,17 +256,18 @@ void setup() {
   while (!Serial) { Serial.begin(STANDARD_SERIAL_OUTPUT_BAUD); delay(100); }
 
   // Display the Serial header
+  bool versionMessageBoxRequired = false;
   Serial.printf("\nName        : OBD2_Interface_v2\nCreated     : Sep 2024\nAuthor      : Kevin Guest AKA TheBionicBone\n");
   Serial.printf("Program     : %s\n", TOP_MENU_PROGRAM_VERSION);
   Serial.printf("ESP-IDF     : %s\n",esp_get_idf_version());
   Serial.printf("Arduino Core: v%d.%d.%d\n", ESP_ARDUINO_VERSION_MAJOR, ESP_ARDUINO_VERSION_MINOR, ESP_ARDUINO_VERSION_PATCH);
   // Check the ESP32 Arduino Core used to compile the code has been validated 
-  if (ESP_ARDUINO_VERSION > ESP_ARDUINO_VERSION_VAL(2, 0, 17)) {
+  if (ESP_ARDUINO_VERSION > ESP_ARDUINO_VERSION_VAL(2, 0, 16)) {
     Serial.printf("\n\n");
     Serial.printf("This ESP Arduino Core Version has not been tested\n");
     Serial.printf("To ensure full compatibility use ESP32 Arduino Core v2.0.17\n");
     Serial.printf("***!!!*** PROCEED WITH CAUTION ***!!!***\n");
-    // TODO: Add a message box to the display so user has to accept the warning or quit with while(true) statement
+    versionMessageBoxRequired = true;
   }
 
   // Start SD Card
@@ -288,6 +288,11 @@ void setup() {
 
   // Clear the display and reset the program header
   ClearDisplay();
+
+  // Issue MessageBox about the ESP32 Arduino Core used to compile the code
+  if (versionMessageBoxRequired) {
+    MessageBox("WARNING", "To ensure full compatibility use ESP32 Arduino Core v2.0.17\n\n*!* USE WITH CAUTION *!*", BTN_OK);
+  }
 
   // Draw the initial Title and Menu
   DrawHorizontalMenu(TOP_MENU_Y_OFFSET, MENU_FONT);
@@ -544,7 +549,6 @@ void TemporaryOutputResults() {
 
 // Calibrate the touch screen and retrieve the scaling factors, see Setup42_ILI9341_ESP32.h for more touch CS Pin definition
 // To recalibrate set REPEAT_CALIBRATION = true 
-// TODO - Checkout tft.calibrateTouch();
 void TFTRectangleILI9341TouchCalibrate() {
   debugLoop("Called\n");
   
@@ -820,9 +824,9 @@ void ProcessMenu(uint8_t btnNumber, uint8_t menuBtnStartPos) {
 uint16_t MessageBox(const char* title, const char* message, uint8_t options) {
   debugLoop("Called\n");
   uint16_t result = 0;
-  uint16_t boxX = TFT_Rectangle_ILI9341.width() * 0.1;
+  uint16_t boxX = TFT_Rectangle_ILI9341.width() * 0.05;
   uint16_t boxY = TFT_Rectangle_ILI9341.height() * 0.2 + TOP_MENU_Y_OFFSET;
-  uint16_t boxWidth = TFT_Rectangle_ILI9341.width() * 0.8;
+  uint16_t boxWidth = TFT_Rectangle_ILI9341.width() * 0.9;
   uint16_t boxHeight = TFT_Rectangle_ILI9341.height() * 0.6;
   uint16_t lineY = boxY;
 
@@ -1156,7 +1160,6 @@ void OutputAnalyseCANBusResults() {
     result = ProcessButtons(MESSAGE_BOX, 1);
     return;
   }
-  // TODO messageBox() Code needs to return values that corrisond to enum MESSAGE_BOX regardless of number of buttons displayed
   else if (result == BTN_CANCEL) {
     // Dislpay Root Menu
     menu = menuRoot;

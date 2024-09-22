@@ -165,16 +165,16 @@ const auto    MENU_Y_OFFSET = 68;                                     // Used to
 // Control variables
 bool          sdCardFirstRun = false;                                 // Will set to true when SD Card initialises, trigger for SavvyCAN header
 bool          CANBusFirstRun = false;                                 // Will set to true when CAN Bus mode changes, trigger for cfps timer to start
-ulong         totalCANReceiveTimeTimer = 0;                           // Times how long we have been receiving CAN Frames
-uint          numberOfCANFramesReceived[2] = { 0,0 };                 // Counts the number of CAN Frames received
-byte          menuCurrentlyDisplayed = 0;                             // Tracks the menu displayed
+uint32_t      totalCANReceiveTimeTimer = 0;                           // Times how long we have been receiving CAN Frames
+uint16_t      numberOfCANFramesReceived[2] = { 0,0 };                 // Counts the number of CAN Frames received
+uint8_t       menuCurrentlyDisplayed = 0;                             // Tracks the menu displayed
 const char*   btnText[] = { "","","","","" };                         // Text displayed in each valid button, used for the inversing
-byte          outputFormat = false;                                   // Tracks the required output type
-ulong         upTimer = micros();                                     // Tracks how long the program has been running, used in the outputs
+uint8_t       outputFormat = false;                                   // Tracks the required output type
+uint32_t      upTimer = micros();                                     // Tracks how long the program has been running, used in the outputs
 
 
 // Sets the new output requirements
-void actionOutputChange(int arg) {
+void actionOutputChange(uint16_t arg) {
   debugLoop("arg = %d\n", arg);
   outputFormat = arg;
   switch (outputFormat) {
@@ -189,7 +189,7 @@ void actionOutputChange(int arg) {
 
 
 // Allows user to configure the CAN BUS Settings
-void changeCANSettings(int arg) {
+void changeCANSettings(uint16_t arg) {
   // TODO write the script
   // TODO I would like an "Auto Detect CAN Bus Speed" function, but first be 100% which CAN library I will be using
   debugLoop("arg = %d\n", arg);
@@ -204,10 +204,10 @@ void changeCANSettings(int arg) {
 enum { H, M, A };                                                     // H = Header, M = New Menu, A = Action Menu Option 
 struct Menu {
   const char* text;
-  int          action;
+  uint16_t          action;
   Menu* menu;
-  void (*func) (int);
-  int          arg;
+  void (*func) (uint16_t);
+  uint16_t          arg;
 };
 
 // Create the menus
@@ -334,7 +334,7 @@ void loop() {
 // Processes the CAN Frame and triggers the required output
 // For Land Rover Freelander 2 set:
 // whichBus = 0 for 500kpbs (High Speed) and 1 for 125kbps (Medium Speed)
-void CANFrameProcessing(byte whichCANBus) {
+void CANFrameProcessing(uint8_t whichCANBus) {
   
   // TODO - implement extend frame detection
 
@@ -355,7 +355,7 @@ void CANFrameProcessing(byte whichCANBus) {
 // SD Card Functions
 
 // Starts the SD Card Device (OpenLager) @ 2,000,000 baud on ESP32-S3 TxPin
-void SDCardStart(byte TxPin) {
+void SDCardStart(uint8_t TxPin) {
   debugLoop("Called\n");
 
   // Due to the writing speed necessary I am using an STM32F411 based "OpenLager" (not to be confused with the slower "OpenLogger") 
@@ -369,7 +369,7 @@ void SDCardStart(byte TxPin) {
 }
 
 // Writes a CAN Frame to the SD Card Device (OpenLager) in SavvyCAN compatible format
-void SDCardCANFrameSavvyCANOutput(byte whichCANBus) {
+void SDCardCANFrameSavvyCANOutput(uint8_t whichCANBus) {
   if(sdCardFirstRun){ 
     SD_Port.printf("Time Stamp,ID,Extended,Bus,LEN,D1,D2,D3,D4,D5,D6,D7,D8\n"); 
     sdCardFirstRun = false; 
@@ -404,7 +404,7 @@ void CANBusResetControlVariables() {
 // mcp2515_0 to 500kpbs (High Speed) in Mode 1 (ListenOnly)
 // mcp2515_1 to 125kbps (Medium Speed) in Mode 1 (ListenOnly)
 // CANMode = 0 for Normal and 1 for ListenOnly
-void CANBusStart(MCP2515 CANBusModule, CAN_SPEED CANSpeed, byte CANMode) {
+void CANBusStart(MCP2515 CANBusModule, CAN_SPEED CANSpeed, uint8_t CANMode) {
   while (CANBusModule.reset() != MCP2515::ERROR_OK) { delay(500); }
   Serial.printf("\nMCP2515 Reset Successful\n");
 
@@ -455,7 +455,7 @@ void TemporaryOutputResults() {
   debugLoop("Called\n");
 
   // Temporary - The results
-  unsigned int totalCANReceiveTime = micros() - totalCANReceiveTimeTimer;
+  uint16_t totalCANReceiveTime = micros() - totalCANReceiveTimeTimer;
   Serial.printf("Total Time = %d us\n", totalCANReceiveTime);
   Serial.printf("500kbps Bus\n");
   Serial.printf("numberOfFramesReceived = %d\n", numberOfCANFramesReceived[0]);
@@ -639,7 +639,7 @@ void ClearDisplay() {
 // Draw a menu along the top of the TFT Display (320 x 240) Rotation 3
 // Menu options are drawn in a line across the top of the screen
 // Contents based on the current menu defined by menu structures
-void drawHorizontalMenu(int yOffset, GFXfont menuFont) {
+void drawHorizontalMenu(int16_t yOffset, GFXfont menuFont) {
   debugLoop("Called\n");
 
   // Clear the display and reset the program header
@@ -647,7 +647,7 @@ void drawHorizontalMenu(int yOffset, GFXfont menuFont) {
 
   // Determine the maximum number of characters in a button so we can calculate the button width correctly
   TFT_Rectangle_ILI9341.setFreeFont(&menuFont);                       // Must set menu font for following calculations
-  byte maxChars = 0;
+  uint8_t maxChars = 0;
   uint8_t menuButtons = 0;
   while (menu[menuButtons].text) {
     if (maxChars < String(menu[menuButtons].text).length()) maxChars = String(menu[menuButtons].text).length();
@@ -656,10 +656,10 @@ void drawHorizontalMenu(int yOffset, GFXfont menuFont) {
   if (maxChars < 10) maxChars = 10;                                   // Draw a minimum button size so user can easily select it
 
   // Calculate the basic button positions
-  int fontWidth = 10; // take a default value for now
-  int yButtonMiddle = TFT_Rectangle_ILI9341.fontHeight() + yOffset;
-  int xButtonWidth = fontWidth * maxChars;
-  int yButtonHeight = TFT_Rectangle_ILI9341.fontHeight() * 1;
+  uint16_t fontWidth = 10; // take a default value for now
+  uint16_t yButtonMiddle = TFT_Rectangle_ILI9341.fontHeight() + yOffset;
+  uint16_t xButtonWidth = fontWidth * maxChars;
+  uint16_t yButtonHeight = TFT_Rectangle_ILI9341.fontHeight() * 1;
 
   // Draw the menu buttons
   TFT_Rectangle_ILI9341.setFreeFont(&menuFont);
@@ -685,7 +685,7 @@ void drawHorizontalMenu(int yOffset, GFXfont menuFont) {
 // Draw a menu in middle of the TFT Display (320 x 240) Rotation 3
 // Menu options are drawn in a line down the screen and presented as buttons
 // Contents based on the current menu defined by menu structures
-void drawVerticalMenu(int yOffset, GFXfont headerFont, GFXfont menuFont) {
+void drawVerticalMenu(int16_t yOffset, GFXfont headerFont, GFXfont menuFont) {
   debugLoop("Called\n");
   
   // Clear the display and reset the program header
@@ -694,8 +694,8 @@ void drawVerticalMenu(int yOffset, GFXfont headerFont, GFXfont menuFont) {
   // Determine the maximum number of characters in a button so we can calculate the 
   // button width correctly and starting position of the buttons in the menu structure
   TFT_Rectangle_ILI9341.setFreeFont(&menuFont);                       // Must set menu font for following calculations
-  byte maxChars = 0;
-  byte menuPosition = 0;
+  uint8_t maxChars = 0;
+  uint8_t menuPosition = 0;
   uint8_t menuButtons = 0;
   uint8_t menuBtnStartPos = 99;
   while (menu[menuPosition].text) {
@@ -709,11 +709,11 @@ void drawVerticalMenu(int yOffset, GFXfont headerFont, GFXfont menuFont) {
   if (maxChars < 10) maxChars = 10;                                   // Minimum button size so user can easily select it
 
   // Calculate the basic button positions
-  int fontWidth = 10; // take a default value for now
-  int xButtonMiddle = TFT_Rectangle_ILI9341.width() / 2;
-  int yButtonMiddle = TFT_Rectangle_ILI9341.fontHeight() * 1.8;
-  int xButtonWidth = fontWidth * maxChars;
-  int yButtonHeight = TFT_Rectangle_ILI9341.fontHeight() * 1.30;
+  uint16_t fontWidth = 10; // take a default value for now
+  uint16_t xButtonMiddle = TFT_Rectangle_ILI9341.width() / 2;
+  uint16_t yButtonMiddle = TFT_Rectangle_ILI9341.fontHeight() * 1.8;
+  uint16_t xButtonWidth = fontWidth * maxChars;
+  uint16_t yButtonHeight = TFT_Rectangle_ILI9341.fontHeight() * 1.30;
 
   // Draw the menu buttons
   TFT_Rectangle_ILI9341.setFreeFont(&menuFont);
@@ -751,16 +751,16 @@ void drawVerticalMenu(int yOffset, GFXfont headerFont, GFXfont menuFont) {
 // Checks if any active buttons on the display have been pressed
 // Once called it will wait for a button to be pressed
 // type: 0 = Menu, 1 = MessageBox
-byte ProcessButtons(uint8_t type, uint8_t numberOfButtons) {          // overload
+uint8_t ProcessButtons(uint8_t type, uint8_t numberOfButtons) {          // overload
   debugLoop("Called (without menuBtnStartPos overload)\n");
-  byte result = ProcessButtons(type, numberOfButtons, 0);
+  uint8_t result = ProcessButtons(type, numberOfButtons, 0);
   return result;
 }
 
 // Checks if any active buttons on the display have been pressed
 // Once called it will wait for a button to be pressed
 // type: 0 = Menu, 1 = MessageBox
-byte ProcessButtons(uint8_t type, uint8_t numberOfButtons, uint8_t menuBtnStartPos) {
+uint8_t ProcessButtons(uint8_t type, uint8_t numberOfButtons, uint8_t menuBtnStartPos) {
   debugLoop("Called (with menuBtnStartPos overload)\n");
   while (true) {   // for now create an endless loop until a button is pressed
 
@@ -819,14 +819,14 @@ void ProcessMenu(uint8_t btnNumber, uint8_t menuBtnStartPos) {
 
 
 // Displays a message box on the display and allows the user to respond
-uint MessageBox(char* title, char* message, byte options) {
+uint16_t MessageBox(char* title, char* message, uint8_t options) {
   debugLoop("Called\n");
-  uint result = 0;
-  uint boxX = TFT_Rectangle_ILI9341.width() * 0.1;
-  uint boxY = TFT_Rectangle_ILI9341.height() * 0.2 + TOP_MENU_Y_OFFSET;
-  uint boxWidth = TFT_Rectangle_ILI9341.width() * 0.8;
-  uint boxHeight = TFT_Rectangle_ILI9341.height() * 0.6;
-  uint lineY = boxY;
+  uint16_t result = 0;
+  uint16_t boxX = TFT_Rectangle_ILI9341.width() * 0.1;
+  uint16_t boxY = TFT_Rectangle_ILI9341.height() * 0.2 + TOP_MENU_Y_OFFSET;
+  uint16_t boxWidth = TFT_Rectangle_ILI9341.width() * 0.8;
+  uint16_t boxHeight = TFT_Rectangle_ILI9341.height() * 0.6;
+  uint16_t lineY = boxY;
 
   // Set up the display
   ClearDisplay();
@@ -844,9 +844,9 @@ uint MessageBox(char* title, char* message, byte options) {
   lineY += TFT_Rectangle_ILI9341.fontHeight() * 1.5;
 
   // Split the message into lines and draw
-  const int maxLineLength = 30;
+  const uint16_t maxLineLength = 30;
   char lineBuffer[maxLineLength + 1];                                 // +1 for the null-terminator
-  int lineLength = 0;
+  uint16_t lineLength = 0;
   const char* current = message;
 
   while (*current != '\0') {
@@ -878,9 +878,9 @@ uint MessageBox(char* title, char* message, byte options) {
   }
 
   // Work out how many buttons we will need and their text
-  byte numberOfOptionButtons = 0;
+  uint8_t numberOfOptionButtons = 0;
   char* messageButtons[3] = { "", "", "" };
-  uint messageButtonPos[3] = { 0,0,0 };
+  uint16_t messageButtonPos[3] = { 0,0,0 };
 
   messageButtons[numberOfOptionButtons] = "OK";                       // Always required
   numberOfOptionButtons++;
@@ -892,10 +892,10 @@ uint MessageBox(char* title, char* message, byte options) {
   // Draw the buttons
   uint8_t menuButtons = 0;
   char handler[1] = "";
-  uint xButtonMiddle = 0;
-  uint xButtonWidth = (boxWidth / 3) * 0.95;
-  uint yButtonHeight = TFT_Rectangle_ILI9341.fontHeight() * 1.2;
-  uint yButtonMiddle = boxY + boxHeight - yButtonHeight * 0.75;
+  uint16_t xButtonMiddle = 0;
+  uint16_t xButtonWidth = (boxWidth / 3) * 0.95;
+  uint16_t yButtonHeight = TFT_Rectangle_ILI9341.fontHeight() * 1.2;
+  uint16_t yButtonMiddle = boxY + boxHeight - yButtonHeight * 0.75;
   if (numberOfOptionButtons == 1) {
     messageButtonPos[0] = TFT_Rectangle_ILI9341.width() / 2;
   }
@@ -909,7 +909,7 @@ uint MessageBox(char* title, char* message, byte options) {
     messageButtonPos[2] = (TFT_Rectangle_ILI9341.width() / 2) + xButtonWidth + 5;
   }
 
-  for (uint i = 0; i < numberOfOptionButtons; i++) {
+  for (uint16_t i = 0; i < numberOfOptionButtons; i++) {
     btnText[menuButtons] = messageButtons[menuButtons];               // Must capture btnText for the ProcessButtons() function
     btnMenu[menuButtons].initButton(&TFT_Rectangle_ILI9341,
       messageButtonPos[i],
@@ -939,7 +939,7 @@ uint MessageBox(char* title, char* message, byte options) {
 
 
 // Directs the required output to the correct output function
-void output(ulong rxId, uint8_t len, uint8_t rxBuf[], uint8_t MCP2515number) {
+void output(uint32_t rxId, uint8_t len, uint8_t rxBuf[], uint8_t MCP2515number) {
   // Send correct output to Serial
   debugLoop("Called\n");
   switch (outputFormat) {
@@ -965,13 +965,13 @@ void OutputAnalyseCANBusResults() {
   */
 
   debugLoop("Called");
-  uint result = MessageBox("Analyse CAN Bus Capacity", "Ensure the OBD2 device is connected to the car with the engine running.", BTN_OK + BTN_CANCEL);
+  uint16_t result = MessageBox("Analyse CAN Bus Capacity", "Ensure the OBD2 device is connected to the car with the engine running.", BTN_OK + BTN_CANCEL);
 
   debugLoop("MessageBox Returned Button %d", result);
 
   if (result == BTN_OK) {
-    uint cfps[2] = { 0,0 };
-    ulong totalCANReceiveTime = 0;
+    uint16_t cfps[2] = { 0,0 };
+    uint32_t totalCANReceiveTime = 0;
     CANBusFirstRun = false;
 
     // Clear the display and reset the program header
@@ -983,12 +983,12 @@ void OutputAnalyseCANBusResults() {
     TFT_Rectangle_ILI9341.setTextDatum(TL_DATUM);
 
     // Draw Results table
-    uint tableX = 20;
-    uint tableY = 100;
-    uint tableW = 280;
-    uint tableH = 80;
-    uint tableFontH = TFT_Rectangle_ILI9341.fontHeight();
-    uint tableFontW = TFT_Rectangle_ILI9341.textWidth("A");
+    uint16_t tableX = 20;
+    uint16_t tableY = 100;
+    uint16_t tableW = 280;
+    uint16_t tableH = 80;
+    uint16_t tableFontH = TFT_Rectangle_ILI9341.fontHeight();
+    uint16_t tableFontW = TFT_Rectangle_ILI9341.textWidth("A");
     // Draw table
     TFT_Rectangle_ILI9341.drawRect(tableX - 1, tableY - 1, tableW + 2, tableH + 2, TFT_LIGHTGREY);
     TFT_Rectangle_ILI9341.fillRect(tableX, tableY, tableW, tableH, TFT_GREEN);
@@ -1088,7 +1088,7 @@ void OutputAnalyseCANBusResults() {
 
     debugLoop("passed = %d", passed);
 
-    uint cfpsCompare = (float)numberOfCANFramesReceived[0] / totalCANReceiveTime * 1000000;
+    uint16_t cfpsCompare = (float)numberOfCANFramesReceived[0] / totalCANReceiveTime * 1000000;
 
     debugLoop("numberOfCANFramesReceived[0] = %d", numberOfCANFramesReceived[0]);
     debugLoop("totalCANReceiveTime = %dus", totalCANReceiveTime);

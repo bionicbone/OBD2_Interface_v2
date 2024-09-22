@@ -821,6 +821,7 @@ void ProcessMenu(uint8_t btnNumber, uint8_t menuBtnStartPos) {
 
 
 // Displays a message box on the display and allows the user to respond
+// Use options to specify buttons, i.e. BTN_OK + BTN_IGNORE + BTN_CANCEL
 uint16_t MessageBox(const char* title, const char* message, uint8_t options) {
   debugLoop("Called\n");
   uint16_t result = 0;
@@ -951,7 +952,7 @@ void OutputAnalyseCANBusResults() {
     125kbps CAN bus will fill in a minimum period of 2664us
   */
 
-  #define MEASURE_TIME 10000000                                           // 10000000 for live, 1000000 to TESTING
+#define MEASURE_TIME 10000000                                         // 10000000 for live, 1000000 to TESTING
 #if MEASURE_TIME != 10000000
   #warning "OutputAnalyseCANBusResults() IS NOT EQUAL to 10000000"
 #endif

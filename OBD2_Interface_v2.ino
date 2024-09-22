@@ -290,7 +290,7 @@ void setup() {
   ClearDisplay();
 
   // Draw the initial Title and Menu
-  drawHorizontalMenu(TOP_MENU_Y_OFFSET, MENU_FONT);
+  DrawHorizontalMenu(TOP_MENU_Y_OFFSET, MENU_FONT);
 }
 
 
@@ -639,7 +639,7 @@ void ClearDisplay() {
 // Draw a menu along the top of the TFT Display (320 x 240) Rotation 3
 // Menu options are drawn in a line across the top of the screen
 // Contents based on the current menu defined by menu structures
-void drawHorizontalMenu(int16_t yOffset, GFXfont menuFont) {
+void DrawHorizontalMenu(int16_t yOffset, GFXfont menuFont) {
   debugLoop("Called\n");
 
   // Clear the display and reset the program header
@@ -685,7 +685,7 @@ void drawHorizontalMenu(int16_t yOffset, GFXfont menuFont) {
 // Draw a menu in middle of the TFT Display (320 x 240) Rotation 3
 // Menu options are drawn in a line down the screen and presented as buttons
 // Contents based on the current menu defined by menu structures
-void drawVerticalMenu(int16_t yOffset, GFXfont headerFont, GFXfont menuFont) {
+void DrawVerticalMenu(int16_t yOffset, GFXfont headerFont, GFXfont menuFont) {
   debugLoop("Called\n");
   
   // Clear the display and reset the program header
@@ -807,13 +807,13 @@ void ProcessMenu(uint8_t btnNumber, uint8_t menuBtnStartPos) {
   debugLoop("Called\n");
   if (M == menu[btnNumber + menuBtnStartPos].action) {                // User selection required another menu
     menu = menu[btnNumber + menuBtnStartPos].menu;
-    drawVerticalMenu(MENU_Y_OFFSET, MENU_BOLD_FONT, MENU_FONT);
+    DrawVerticalMenu(MENU_Y_OFFSET, MENU_BOLD_FONT, MENU_FONT);
   }
   else if (A == menu[btnNumber + menuBtnStartPos].action) {           // User selection calls a code function
     menu[btnNumber + menuBtnStartPos].func(menu[btnNumber + menuBtnStartPos].arg);
 
     menu = menuRoot;                                                  // After the code function returns jump back to the root menu
-    drawHorizontalMenu(TOP_MENU_Y_OFFSET, MENU_FONT);
+    DrawHorizontalMenu(TOP_MENU_Y_OFFSET, MENU_FONT);
   }
 }
 
@@ -935,22 +935,6 @@ uint16_t MessageBox(char* title, char* message, uint8_t options) {
   else if (messageButtons[result] == "CANCEL") result = BTN_CANCEL;
 
   return result;
-}
-
-
-// Directs the required output to the correct output function
-void output(uint32_t rxId, uint8_t len, uint8_t rxBuf[], uint8_t MCP2515number) {
-  // Send correct output to Serial
-  debugLoop("Called\n");
-  switch (outputFormat) {
-  case Output_Analyse_CAN_Bus_Results:
-    OutputAnalyseCANBusResults();
-    break;
-
-  default:
-    Serial.printf("ERROR: Unsupported Output Requested\n");
-    break;
-  }
 }
 
 
@@ -1126,7 +1110,7 @@ void OutputAnalyseCANBusResults() {
   else if (result == BTN_CANCEL) {
     // Dislpay Root Menu
     menu = menuRoot;
-    drawHorizontalMenu(TOP_MENU_Y_OFFSET, MENU_FONT);
+    DrawHorizontalMenu(TOP_MENU_Y_OFFSET, MENU_FONT);
     return;
   }
 

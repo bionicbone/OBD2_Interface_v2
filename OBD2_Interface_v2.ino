@@ -168,7 +168,7 @@ ulong               upTimer = micros();                               // Tracks 
 
 // Sets the new output requirements
 void actionOutputChange(int arg) {
-  Serial.printf("actionOutputChange Called\n");
+  Serial.printf("actionOutputChange: arg = %d\n", arg);
   outputFormat = arg;
   switch (outputFormat) {
   case Output_Analyse_CAN_Bus_Results:
@@ -185,8 +185,7 @@ void actionOutputChange(int arg) {
 void changeCANSettings(int arg) {
   // TODO write the script
   // TODO I would like an "Auto Detect CAN Bus Speed" function, but first be 100% which CAN library I will be using
-  Serial.print("changeCANSettings: ");
-  Serial.println(arg);
+  Serial.printf("changeCANSettings: arg = %d\n", arg);
 }
                                                                       
      
@@ -907,7 +906,7 @@ uint MessageBox(char* title, char* message, byte options) {
 
   result = ProcessButtons(MESSAGE_BOX, menuButtons);
 
-  Serial.printf("MessageBox result = %d\n", result);
+  Serial.printf("MessageBox result = %d (zero-based indexing)\n", result);
 
 
   // Clear the display and reset the program header
@@ -949,7 +948,7 @@ void OutputAnalyseCANBusResults() {
   Serial.printf("OutputAnalyseCANBusResults Called\n");
   uint result = MessageBox("Analyse CAN Bus Capacity", "Ensure the OBD2 device is connected to the car with the engine running.", BTN_OK + BTN_CANCEL);
 
-  Serial.print("MessageBox Returned Option "); Serial.println(result);
+  Serial.print("MessageBox Returned Button "); Serial.println(result);
 
   if (result == BTN_OK) {
     uint cfps[2] = { 0,0 };
@@ -1068,7 +1067,7 @@ void OutputAnalyseCANBusResults() {
     // Compare the results for CAN Interface 0
     bool passed = true;
 
-    Serial.printf("Set Result %d\n", passed);
+    Serial.printf("passed = %d\n", passed);
 
     uint cfpsCompare = (float)numberOfCANFramesReceived[0] / totalCANReceiveTime * 1000000;
 
@@ -1078,7 +1077,7 @@ void OutputAnalyseCANBusResults() {
     Serial.print("cfps[0] = "); Serial.println(cfps[0]);
 
     if ((cfps[0] * 0.99 <= cfpsCompare) || (cfps[0] * 1.01 >= cfpsCompare)) { passed = false; }
-    Serial.printf("Result %d\n", passed);
+    Serial.printf("passed = %d\n", passed);
 
     TFT_Rectangle_ILI9341.drawCentreString(String(cfpsCompare) + "cfps", tableX + (tableFontW * 31), tableY + 20, 2);
 
@@ -1092,7 +1091,7 @@ void OutputAnalyseCANBusResults() {
 
     if (((float)cfps[1] * 0.99 <= cfpsCompare) || ((float)cfps[1] * 1.01 >= cfpsCompare)) { passed = false; }
 
-    Serial.printf("Result %d\n", passed);
+    Serial.printf("passed = %d\n", passed);
 
 
     TFT_Rectangle_ILI9341.drawCentreString(String(cfpsCompare) + "cfps", tableX + (tableFontW * 31), tableY + 40, 2);

@@ -133,6 +133,11 @@ TFT_eSPI TFT_Rectangle_ILI9341 = TFT_eSPI();
 
 */
 
+
+// Debugging Options (ESP32 Version)
+//#define debugLoop(fmt, ...)
+#define debugLoop(fmt, ...) Serial.printf("%s: " fmt "\r\n", __func__, ##__VA_ARGS__)  // ESP
+
 // Enums
 enum { MENU, MESSAGE_BOX };
 
@@ -168,7 +173,7 @@ ulong               upTimer = micros();                               // Tracks 
 
 // Sets the new output requirements
 void actionOutputChange(int arg) {
-  Serial.printf("actionOutputChange: arg = %d\n", arg);
+  debugLoop("arg = %d\n", arg);
   outputFormat = arg;
   switch (outputFormat) {
   case Output_Analyse_CAN_Bus_Results:
@@ -185,7 +190,7 @@ void actionOutputChange(int arg) {
 void changeCANSettings(int arg) {
   // TODO write the script
   // TODO I would like an "Auto Detect CAN Bus Speed" function, but first be 100% which CAN library I will be using
-  Serial.printf("changeCANSettings: arg = %d\n", arg);
+  debugLoop("arg = %d\n", arg);
 }
                                                                       
      
@@ -288,7 +293,7 @@ void setup() {
 
 
 void loop() {
-  Serial.printf("loop() Called");
+  debugLoop("loop() Called");
   delay(1000);
 
   //while (numberOfCANFramesReceived[0] < 10000) {
@@ -349,6 +354,8 @@ void CANFrameProcessing(byte whichCANBus) {
 
 // Starts the SD Card Device (OpenLager) @ 2,000,000 baud on ESP32-S3 TxPin
 void SDCardStart(byte TxPin) {
+  debugLoop("Called\n");
+
   // Due to the writing speed necessary I am using an STM32F411 based "OpenLager" (not to be confused with the slower "OpenLogger") 
   while (!SD_Port) {
     SD_Port.begin(2000000, SERIAL_8N1, -1, TxPin);                    // Rx pin in not required, we will not use any OpenLager read options
@@ -443,6 +450,7 @@ bool CANBusReadCANData(MCP2515 CANBusModule) {
 
 // Writes satistics to Serial and SD Card outputs
 void TemporaryOutputResults() {
+  debugLoop("Called\n");
 
   // Temporary - The results
   unsigned int totalCANReceiveTime = micros() - totalCANReceiveTimeTimer;
@@ -538,6 +546,8 @@ void TemporaryOutputResults() {
 // To recalibrate set REPEAT_CALIBRATION = true 
 // TODO - Checkout tft.calibrateTouch();
 void TFTRectangleILI9341TouchCalibrate() {
+  debugLoop("Called\n");
+  
   // This calibration code came for the TFT_eSPI library example Keypad_240x320
   // My thanks to Bodmer for this code, copywrite acknowledged in the header and library folder
 
@@ -611,6 +621,7 @@ void TFTRectangleILI9341TouchCalibrate() {
 // Sets font to MENU_FONT & TextDatum(MC_DATUM)
 // Requires FONT_2 to be loaded (header font)
 void ClearDisplay() {
+  debugLoop("Called\n");
   TFT_Rectangle_ILI9341.setRotation(3);
   TFT_Rectangle_ILI9341.fillScreen(TFT_LANDROVERGREEN);
   TFT_Rectangle_ILI9341.setTextColor(TFT_WHITE, TFT_LANDROVERGREEN, true);
@@ -627,6 +638,8 @@ void ClearDisplay() {
 // Menu options are drawn in a line across the top of the screen
 // Contents based on the current menu defined by menu structures
 void drawHorizontalMenu(int yOffset, GFXfont menuFont) {
+  debugLoop("Called\n");
+
   // Clear the display and reset the program header
   ClearDisplay();
 
@@ -671,6 +684,8 @@ void drawHorizontalMenu(int yOffset, GFXfont menuFont) {
 // Menu options are drawn in a line down the screen and presented as buttons
 // Contents based on the current menu defined by menu structures
 void drawVerticalMenu(int yOffset, GFXfont headerFont, GFXfont menuFont) {
+  debugLoop("Called\n");
+  
   // Clear the display and reset the program header
   ClearDisplay();
 
@@ -735,6 +750,7 @@ void drawVerticalMenu(int yOffset, GFXfont headerFont, GFXfont menuFont) {
 // Once called it will wait for a button to be pressed
 // type: 0 = Menu, 1 = MessageBox
 byte ProcessButtons(uint8_t type, uint8_t numberOfButtons) {          // overload
+  debugLoop("Called (without menuBtnStartPos overload)\n");
   byte result = ProcessButtons(type, numberOfButtons, 0);
   return result;
 }
@@ -743,7 +759,7 @@ byte ProcessButtons(uint8_t type, uint8_t numberOfButtons) {          // overloa
 // Once called it will wait for a button to be pressed
 // type: 0 = Menu, 1 = MessageBox
 byte ProcessButtons(uint8_t type, uint8_t numberOfButtons, uint8_t menuBtnStartPos) {
-
+  debugLoop("Called (with menuBtnStartPos overload)\n");
   while (true) {   // for now create an endless loop until a button is pressed
 
     uint16_t t_x = 0, t_y = 0;                                        // To store the touch coordinates
@@ -786,6 +802,7 @@ byte ProcessButtons(uint8_t type, uint8_t numberOfButtons, uint8_t menuBtnStartP
 // btnNumber = the button the user pressed
 // menuBtnStartPos = the postion of the first menu option in the menu structure
 void ProcessMenu(uint8_t btnNumber, uint8_t menuBtnStartPos) {
+  debugLoop("Called\n");
   if (M == menu[btnNumber + menuBtnStartPos].action) {                // User selection required another menu
     menu = menu[btnNumber + menuBtnStartPos].menu;
     drawVerticalMenu(MENU_Y_OFFSET, MENU_BOLD_FONT, MENU_FONT);
@@ -802,7 +819,7 @@ void ProcessMenu(uint8_t btnNumber, uint8_t menuBtnStartPos) {
 enum MESSAGE_BOX { BTN_OK, BTN_IGNORE, BTN_CANCEL };
 // Displays a message box on the display and allows the user to respond
 uint MessageBox(char* title, char* message, byte options) {
-  Serial.printf("MessageBox Called\n");
+  debugLoop("Called\n");
   uint result = 0;
   uint boxX = TFT_Rectangle_ILI9341.width() * 0.1;
   uint boxY = TFT_Rectangle_ILI9341.height() * 0.2 + TOP_MENU_Y_OFFSET;
@@ -869,7 +886,7 @@ uint MessageBox(char* title, char* message, byte options) {
   if (options & BTN_IGNORE) { messageButtons[numberOfOptionButtons] = "IGNORE"; numberOfOptionButtons++; }
   if (options & BTN_CANCEL) { messageButtons[numberOfOptionButtons] = "CANCEL"; numberOfOptionButtons++; }
 
-  Serial.printf("MessageBox numberOfOptionButtons = %d\n", numberOfOptionButtons);
+  debugLoop("MessageBox numberOfOptionButtons = %d", numberOfOptionButtons);
 
   // Draw the buttons
   uint8_t menuButtons = 0;
@@ -906,7 +923,7 @@ uint MessageBox(char* title, char* message, byte options) {
 
   result = ProcessButtons(MESSAGE_BOX, menuButtons);
 
-  Serial.printf("MessageBox result = %d (zero-based indexing)\n", result);
+  debugLoop("MessageBox result = %d (zero-based indexing)", result);
 
 
   // Clear the display and reset the program header
@@ -923,6 +940,7 @@ uint MessageBox(char* title, char* message, byte options) {
 // Directs the required output to the correct output function
 void output(ulong rxId, uint8_t len, uint8_t rxBuf[], uint8_t MCP2515number) {
   // Send correct output to Serial
+  debugLoop("Called\n");
   switch (outputFormat) {
   case Output_Analyse_CAN_Bus_Results:
     OutputAnalyseCANBusResults();
@@ -945,10 +963,10 @@ void OutputAnalyseCANBusResults() {
     125kbps CAN bus will fill in a minimum period of 2664us
   */
 
-  Serial.printf("OutputAnalyseCANBusResults Called\n");
+  debugLoop("Called");
   uint result = MessageBox("Analyse CAN Bus Capacity", "Ensure the OBD2 device is connected to the car with the engine running.", BTN_OK + BTN_CANCEL);
 
-  Serial.print("MessageBox Returned Button "); Serial.println(result);
+  debugLoop("MessageBox Returned Button %d", result);
 
   if (result == BTN_OK) {
     uint cfps[2] = { 0,0 };
@@ -1067,32 +1085,31 @@ void OutputAnalyseCANBusResults() {
     // Compare the results for CAN Interface 0
     bool passed = true;
 
-    Serial.printf("passed = %d\n", passed);
+    debugLoop("passed = %d", passed);
 
     uint cfpsCompare = (float)numberOfCANFramesReceived[0] / totalCANReceiveTime * 1000000;
 
-    Serial.print("numberOfCANFramesReceived[0] = "); Serial.println(numberOfCANFramesReceived[0]);
-    Serial.print("totalCANReceiveTime = "); Serial.print(totalCANReceiveTime); Serial.println("us");
-    Serial.print("cfpsCompare = "); Serial.println(cfpsCompare);
-    Serial.print("cfps[0] = "); Serial.println(cfps[0]);
+    debugLoop("numberOfCANFramesReceived[0] = %d", numberOfCANFramesReceived[0]);
+    debugLoop("totalCANReceiveTime = %dus", totalCANReceiveTime);
+    debugLoop("cfpsCompare = %d", cfpsCompare);
+    debugLoop("cfps[0] = %d", cfps[0]);
 
     if ((cfps[0] * 0.99 <= cfpsCompare) || (cfps[0] * 1.01 >= cfpsCompare)) { passed = false; }
-    Serial.printf("passed = %d\n", passed);
+    debugLoop("passed = %d", passed);
 
     TFT_Rectangle_ILI9341.drawCentreString(String(cfpsCompare) + "cfps", tableX + (tableFontW * 31), tableY + 20, 2);
 
     // Compare the results for CAN Interface 1
     cfpsCompare = (float)numberOfCANFramesReceived[1] / totalCANReceiveTime * 1000000;
 
-    Serial.print("numberOfCANFramesReceived[1] = "); Serial.println(numberOfCANFramesReceived[1]);
-    Serial.print("totalCANReceiveTime = "); Serial.print(totalCANReceiveTime); Serial.println("us");
-    Serial.print("cfpsCompare = "); Serial.println(cfpsCompare);
-    Serial.print("cfps[1] = "); Serial.println(cfps[1]);
+    debugLoop("numberOfCANFramesReceived[1] = %d", numberOfCANFramesReceived[1]);
+    debugLoop("totalCANReceiveTime = %dus", totalCANReceiveTime);
+    debugLoop("cfpsCompare = %d", cfpsCompare);
+    debugLoop("cfps[1] = %d", cfps[1]);
 
     if (((float)cfps[1] * 0.99 <= cfpsCompare) || ((float)cfps[1] * 1.01 >= cfpsCompare)) { passed = false; }
 
-    Serial.printf("passed = %d\n", passed);
-
+    debugLoop("passed = %d", passed);
 
     TFT_Rectangle_ILI9341.drawCentreString(String(cfpsCompare) + "cfps", tableX + (tableFontW * 31), tableY + 40, 2);
     if (passed) {

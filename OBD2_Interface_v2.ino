@@ -155,11 +155,11 @@ enum          BUTTON_TYPES {
               MESSAGE_BOX, 
               DISPLAY_BUTTON };
 enum          OUTPUT_TYPES { 
-              Output_Analyse_CAN_Bus_Results, 
-              Output_Format_CanDrive, 
-              Output_Format_SavvyCan, 
-              Output_SD_Card_SavvyCAN, 
-              Output_WiFi };
+              OUTPUT_ANALYSE_CAN_BUS_RESULTS, 
+              OUTPUT_FORMAT_CANDRIVE, 
+              OUTPUT_FORMAT_SAVVYCAN, 
+              OUTPUT_SD_CARD_SAVVYCAN, 
+              OUTPUT_WIFI };
 
 
 // Constants & ESP32-S3 pin declarations
@@ -196,12 +196,12 @@ void actionOutputChange(uint16_t arg) {
   debugLoop("arg = %d\n", arg);
   outputFormat = arg;
   switch (outputFormat) {
-  case Output_Analyse_CAN_Bus_Results:
+  case OUTPUT_ANALYSE_CAN_BUS_RESULTS:
     OutputAnalyseCANBusResults();
     break;
 
   // TODO we maybe able to use Menu structure to jump straight to StartReadingCanBus()
-  case Output_Format_CanDrive:
+  case OUTPUT_FORMAT_CANDRIVE:
     StartReadingCanBus();
     break;
 
@@ -243,11 +243,11 @@ Menu CANSettings[]{
 
 Menu menuOutput[]{
   { "Select Required Output", H },
-  { "Analyse CAN Bus Capacity", A, 0, actionOutputChange, Output_Analyse_CAN_Bus_Results },
-  { "Serial CanDrive", A, 0, actionOutputChange, Output_Format_CanDrive },
-  { "Serial SavvyCAN", A, 0, actionOutputChange, Output_Format_SavvyCan },
-  { "Save SavvyCAN", A, 0, actionOutputChange, Output_SD_Card_SavvyCAN },
-  { "WiFi Data", A, 0, actionOutputChange, Output_WiFi },
+  { "Analyse CAN Bus Capacity", A, 0, actionOutputChange, OUTPUT_ANALYSE_CAN_BUS_RESULTS },
+  { "Serial CanDrive", A, 0, actionOutputChange, OUTPUT_FORMAT_CANDRIVE },
+  { "Serial SavvyCAN", A, 0, actionOutputChange, OUTPUT_FORMAT_SAVVYCAN },
+  { "Save SavvyCAN", A, 0, actionOutputChange, OUTPUT_SD_CARD_SAVVYCAN },
+  { "WiFi Data", A, 0, actionOutputChange, OUTPUT_WIFI },
   { },
 }; 
 
@@ -262,8 +262,8 @@ Menu menuRoot[]{
 Menu* menu = menuRoot;                                                // Start with the top most menu
 
 // Add MCP2515 Modules
-MCP2515 mcp2515_0(CAN_BUS_0_CS_PIN);                                  // Create MCP2515 controller for High Speed CAN Bus 500kbps
-MCP2515 mcp2515_1(CAN_BUS_1_CS_PIN);                                  // Create MCP2515 controller for Medium Speed CAN Bus 125kbps
+MCP2515 mcp2515_1(CAN_BUS_0_CS_PIN);                                  // Create MCP2515 controller for High Speed CAN Bus 500kbps
+MCP2515 mcp2515_2(CAN_BUS_1_CS_PIN);                                  // Create MCP2515 controller for Medium Speed CAN Bus 125kbps
 struct can_frame frame;
 
 // Add SD Card Serial Port
@@ -298,8 +298,8 @@ void setup() {
   SDCardStart(SD_CARD_ESP32_S3_TX_PIN);
 
   // Start the two CAN Bus, 500kbps for High Speed and 125kbps for the Medium Speed and both in ListenOnly Mode
-  CANBusStart(mcp2515_0, CAN_500KBPS, 1); 
-  CANBusStart(mcp2515_1, CAN_125KBPS, 1);
+  CANBusStart(mcp2515_1, CAN_500KBPS, 1); 
+  CANBusStart(mcp2515_2, CAN_125KBPS, 1);
 
   // TFT_eSPI runs on HSPI bus, see Setup42_ILI9341_ESP32.h for pin definitions and more information
   TFT_Rectangle_ILI9341.init();
@@ -350,15 +350,15 @@ void StartReadingCanBus() {
       125kbps CAN bus will fill in a minimum period of 2664us
     */
   
-  debugLoop("Called\n");
+  debugLoop("Called");
 
   // Reset the display
   ClearDisplay();
 
-  uint16_t interfaceNumber = 0;
+  uint8_t interfaceNumber = 0;
   
   switch (outputFormat) {
-  case Output_Format_CanDrive:
+  case OUTPUT_FORMAT_CANDRIVE:
     // CanDrive only supports one interface at a time, user must select one first
     interfaceNumber = MessageBox("Select Interface", "CanDrive only supports reading one CAN interface at a time. Please select which one.", BTN_CAN1 + BTN_CAN2);
     debugLoop("interfaceNumber = %d", interfaceNumber);
@@ -399,17 +399,17 @@ void StartReadingCanBus() {
   while (true) {
     // Check the 500kbps bus as priority over 125kbps because 500kbps is faster
     // and the buffers fill significantly more quickly
-    if (CANBusCheckRecieved(mcp2515_0) && (interfaceNumber & CAN1)) {
-      if (CANBusReadCANData(mcp2515_0)) {
-        debugLoop("mcp2515_0 read");
-        CANFrameProcessing(0);
-      }
-    }
-    // only check the 125kbps if there any no 500kbps messages in the MCP2515 buffers
-    else if (CANBusCheckRecieved(mcp2515_1) && (interfaceNumber & CAN2)) {
+    if (CANBusCheckRecieved(mcp2515_1) && (interfaceNumber & CAN1)) {
       if (CANBusReadCANData(mcp2515_1)) {
         debugLoop("mcp2515_1 read");
         CANFrameProcessing(1);
+      }
+    }
+    // only check the 125kbps if there any no 500kbps messages in the MCP2515 buffers
+    else if (CANBusCheckRecieved(mcp2515_2) && (interfaceNumber & CAN2)) {
+      if (CANBusReadCANData(mcp2515_2)) {
+        debugLoop("mcp2515_2 read");
+        CANFrameProcessing(2);
       }
     }
     else {
@@ -440,7 +440,7 @@ void CANFrameProcessing(uint8_t whichCANBus) {
 
 
   switch (outputFormat) {
-  case Output_Format_CanDrive:
+  case OUTPUT_FORMAT_CANDRIVE:
     OutputFormatCanDrive(frame.can_id, frame.can_dlc, frame.data, whichCANBus);
       break;
 
@@ -459,7 +459,7 @@ void CANFrameProcessing(uint8_t whichCANBus) {
 
 // Starts the SD Card Device (OpenLager) @ 2,000,000 baud on ESP32-S3 TxPin
 void SDCardStart(uint8_t TxPin) {
-  debugLoop("Called\n");
+  debugLoop("Called");
 
   // Due to the writing speed necessary I am using an STM32F411 based "OpenLager" (not to be confused with the slower "OpenLogger") 
   while (!SD_Port) {
@@ -467,7 +467,7 @@ void SDCardStart(uint8_t TxPin) {
     delay(500);
   }
   delay(1000);                                                        // For start up stability (corruption was noticed if we try to write immediately)
-  Serial.printf("\nSD Card writer initialised\n");
+  debugLoop("SD Card writer initialised\n");
   sdCardFirstRun = true;
 }
 
@@ -504,15 +504,15 @@ void CANBusResetControlVariables() {
 
 // Starts one of the two MCP2515 CAN controllers
 // For Land Rover Freelander 2 set:
-// mcp2515_0 to 500kpbs (High Speed) in Mode 1 (ListenOnly)
-// mcp2515_1 to 125kbps (Medium Speed) in Mode 1 (ListenOnly)
+// mcp2515_1 to 500kpbs (High Speed) in Mode 1 (ListenOnly)
+// mcp2515_2 to 125kbps (Medium Speed) in Mode 1 (ListenOnly)
 // CANMode = 0 for Normal and 1 for ListenOnly
 void CANBusStart(MCP2515 CANBusModule, CAN_SPEED CANSpeed, uint8_t CANMode) {
   while (CANBusModule.reset() != MCP2515::ERROR_OK) { delay(500); }
-  Serial.printf("\nMCP2515 Reset Successful\n");
+  debugLoop("MCP2515 Reset Successful");
 
   while (CANBusModule.setBitrate(CANSpeed) != MCP2515::ERROR_OK) { delay(500); }
-  Serial.printf("MCP2515 BitRate Successful\n");
+  debugLoop("MCP2515 BitRate Successful");
 
   if (CANMode == 0) {
     CANbusSetNormalMode(CANBusModule);
@@ -525,14 +525,14 @@ void CANBusStart(MCP2515 CANBusModule, CAN_SPEED CANSpeed, uint8_t CANMode) {
 // Set an MCP2515 CAN controller to Listen Only Mode
 void CANbusSetListenOnlyMode(MCP2515 CANBusModule) {
   while (CANBusModule.setListenOnlyMode() != MCP2515::ERROR_OK) { delay(500); }
-  Serial.printf("\nMCP2515 Listen Only Mode Successful\n");
+  debugLoop("MCP2515 Listen Only Mode Successful");
   CANBusResetControlVariables();
 }
 
 // Set an MCP2515 CAN controller to Normal Mode
 void CANbusSetNormalMode(MCP2515 CANBusModule) {
   while (CANBusModule.setNormalMode() != MCP2515::ERROR_OK) { delay(500); }
-  Serial.printf("\nMCP2515 Normal Mode Successful\n");
+  debugLoop("MCP2515 Normal Mode Successful");
   CANBusResetControlVariables();
 }
 
@@ -554,91 +554,69 @@ bool CANBusReadCANData(MCP2515 CANBusModule) {
 
 
 // Writes satistics to Serial and SD Card outputs
-void TemporaryOutputResults() {
-  debugLoop("Called\n");
+void SDCardOutputResults() {
+  debugLoop("Called");
 
   // Temporary - The results
-  uint16_t totalCANReceiveTime = micros() - totalCANReceiveTimeTimer;
-  Serial.printf("Total Time = %d us\n", totalCANReceiveTime);
-  Serial.printf("500kbps Bus\n");
-  Serial.printf("numberOfFramesReceived = %d\n", numberOfCANFramesReceived[0]);
-  Serial.printf("Frames per Second = %.2f fps\n", (float)numberOfCANFramesReceived[0] / totalCANReceiveTime * 1000000);
+  uint32_t totalCANReceiveTime = micros() - totalCANReceiveTimeTimer;
+  debugLoop("Total Time = %d us", totalCANReceiveTime);
+  debugLoop("500kbps Bus");
+  debugLoop("numberOfFramesReceived = %d", numberOfCANFramesReceived[0]);
+  debugLoop("Frames per Second = %.2f fps", (float)numberOfCANFramesReceived[0] / totalCANReceiveTime * 1000000);
 
   SD_Port.printf("Total Time = %d us\n", totalCANReceiveTime);
   SD_Port.printf("500kbps Bus\n");
   SD_Port.printf("numberOfFramesReceived = %d\n", numberOfCANFramesReceived[0]);
   SD_Port.printf("Frames per Second = %.2f fps\n", (float)numberOfCANFramesReceived[0] / totalCANReceiveTime * 1000000);
 
-  //TFT_Rectangle_ILI9341.printf("Total Time = %d us\n", totalCANReceiveTime);
-  //TFT_Rectangle_ILI9341.printf("500kbps Bus\n");
-  //TFT_Rectangle_ILI9341.printf("numberOfFramesReceived = %d\n", numberOfCANFramesReceived[0]);
-  //TFT_Rectangle_ILI9341.printf("Frames per Second = %.2f fps\n", (float)numberOfCANFramesReceived[0] / totalCANReceiveTime * 1000000);
-
   // Calculate CAN Bus Capacity Used
-
-  //// For DEBUGGING
-  //Serial.printf("\n\n");
-  //Serial.println("Capacity % calculation data");
-  //Serial.print("numberOfFramesReceived = "); Serial.println(numberOfCANFramesReceived[0]);
-  //Serial.print("totalReceiveTime = "); Serial.println(totalCANReceiveTime);
+  debugLoop("Capacity %% calculation data");
+  debugLoop("numberOfFramesReceived = %d", numberOfCANFramesReceived[0]);
+  debugLoop("totalReceiveTime = %d", totalCANReceiveTime);
 
   uint8_t percentageOfBusCapacity = 0.00;
   float timeTaken = 0.000000;                                         // define high precision floating point math
   timeTaken = (((float)totalCANReceiveTime / (float)1000000));        // time taken to read numberOfFramesReceived
-  uint64_t bitsTx = 119 * numberOfCANFramesReceived[0];               // 119 bits (average based on small sample of FL2 live CAN Data).
-  uint64_t bitRate = bitsTx / timeTaken;                              // bit rate used on the CAN bus
-
+  uint32_t bitsTx = 119 * numberOfCANFramesReceived[0];               // 119 bits (average based on small sample of FL2 live CAN Data).
+  uint32_t bitRate = bitsTx / timeTaken;                              // bit rate used on the CAN bus
   percentageOfBusCapacity = ((float)bitRate / 500000) * 100;          // the percentage used of the CAN bus
 
-  //// For DEBUGGING
-  //Serial.print("timeTaken = "); Serial.println(timeTaken, 6);
-  //Serial.print("bitsTx = "); Serial.println(bitsTx);
-  //Serial.print("bitRate = "); Serial.println(bitRate);
+  // For DEBUGGING
+  debugLoop("timeTaken = %d", (uint32_t)timeTaken);
+  debugLoop("bitsTx = %d", bitsTx); 
+  debugLoop("bitRate = %d", bitRate);
 
-  Serial.printf("Capacity used %d%% (limited accuracy)\n", percentageOfBusCapacity);
+  debugLoop("Capacity used %d%% (limited accuracy)\n", percentageOfBusCapacity);
 
   SD_Port.printf("Capacity used %d%% (limited accuracy)\n", percentageOfBusCapacity);
 
-  //TFT_Rectangle_ILI9341.printf("Capacity used %d%% (limited accuracy)\n", percentageOfBusCapacity);
-
-  Serial.printf("125kbps Bus\n");
-  Serial.printf("numberOfFramesReceived = %d\n", numberOfCANFramesReceived[1]);
-  Serial.printf("Frames per Second = %.2f fps\n", (float)numberOfCANFramesReceived[1] / totalCANReceiveTime * 1000000);
+  debugLoop("125kbps Bus");
+  debugLoop("numberOfFramesReceived = %d", numberOfCANFramesReceived[1]);
+  debugLoop("Frames per Second = %.2f fps", (float)numberOfCANFramesReceived[1] / totalCANReceiveTime * 1000000);
 
   SD_Port.printf("125kbps Bus\n");
   SD_Port.printf("numberOfFramesReceived = %d\n", numberOfCANFramesReceived[1]);
   SD_Port.printf("Frames per Second = %.2f fps\n", (float)numberOfCANFramesReceived[1] / totalCANReceiveTime * 1000000);
 
-  //TFT_Rectangle_ILI9341.printf("125kbps Bus\n");
-  //TFT_Rectangle_ILI9341.printf("numberOfFramesReceived = %d\n", numberOfCANFramesReceived[1]);
-  //TFT_Rectangle_ILI9341.printf("Frames per Second = %.2f fps\n", (float)numberOfCANFramesReceived[1] / totalCANReceiveTime * 1000000);
-
   // Calculate CAN Bus Capacity Used
-
-  // For DEBUGGING
-  //Serial.printf("\n\n");
-  //Serial.println("Capacity % calculation data");
-  //Serial.print("numberOfFramesReceived = "); Serial.println(numberOfCANFramesReceived[1]);
-  //Serial.print("totalReceiveTime = "); Serial.println(totalCANReceiveTime);
+  debugLoop("Capacity %% calculation data");
+  debugLoop("numberOfFramesReceived = %d", numberOfCANFramesReceived[1]);
+  debugLoop("totalReceiveTime = %d", totalCANReceiveTime);
 
   percentageOfBusCapacity = 0.00;
   timeTaken = 0.000000;                                               // define high precision floating point math
   timeTaken = (((float)totalCANReceiveTime / (float)1000000));        // time taken to read numberOfFramesReceived
   bitsTx = 119 * numberOfCANFramesReceived[1];                        // 119 bits (average based on small sample of FL2 live CAN Data).
   bitRate = bitsTx / timeTaken;                                       // bit rate used on the CAN bus
-
   percentageOfBusCapacity = ((float)bitRate / 125000) * 100;          // the percentage used of the CAN bus
 
-  //// For DEBUGGING
-  //Serial.print("timeTaken = "); Serial.println(timeTaken, 6);
-  //Serial.print("bitsTx = "); Serial.println(bitsTx);
-  //Serial.print("bitRate = "); Serial.println(bitRate);
+  debugLoop("timeTaken = %d", (uint32_t)timeTaken);
+  debugLoop("bitsTx = %d", bitsTx);
+  debugLoop("bitRate = %d", bitRate);
 
-  Serial.printf("Capacity used %d%% (limited accuracy)\n", percentageOfBusCapacity);
+  debugLoop("Capacity used %d%% (limited accuracy)\n", percentageOfBusCapacity);
 
   SD_Port.printf("Capacity used %d%% (limited accuracy)\n", percentageOfBusCapacity);
-
-  //TFT_Rectangle_ILI9341.printf("Capacity used %d%% (limited accuracy)\n", percentageOfBusCapacity);
 
   SD_Port.flush();
   SD_Port.end();
@@ -875,34 +853,34 @@ uint8_t ProcessButtons(uint8_t type, uint8_t numberOfButtons, uint8_t menuBtnSta
     bool pressed = TFT_Rectangle_ILI9341.getTouch(&t_x, &t_y);
 
     // Check if any key coordinate boxes contain the touch coordinates
-    for (uint8_t b = 0; b < numberOfButtons; b++) {
-      if (pressed && btnMenu[b].contains(t_x, t_y)) {
-        btnMenu[b].press(true);                                       // tell the button it is pressed
+    for (uint8_t btnCounter = 0; btnCounter < numberOfButtons; btnCounter++) {
+      if (pressed && btnMenu[btnCounter].contains(t_x, t_y)) {
+        btnMenu[btnCounter].press(true);                              // tell the button it is pressed
       }
       else {
-        btnMenu[b].press(false);                                      // tell the button it is NOT pressed
+        btnMenu[btnCounter].press(false);                             // tell the button it is NOT pressed
       }
     }
 
     // Check if any key has changed state
-    for (uint8_t b = 0; b < numberOfButtons; b++) {
+    for (uint8_t btnCounter = 0; btnCounter < numberOfButtons; btnCounter++) {
 
       TFT_Rectangle_ILI9341.setFreeFont(&MENU_FONT);
 
-      if (btnMenu[b].justPressed()) {
-        btnMenu[b].drawButton(true, btnText[b]);                      // draw inverted
+      if (btnMenu[btnCounter].justPressed()) {
+        btnMenu[btnCounter].drawButton(true, btnText[btnCounter]);    // draw inverted
         delay(100);                                                   // UI debouncing
       }
 
-      if (btnMenu[b].justReleased()) {
-        btnMenu[b].drawButton(false, btnText[b]);                     // draw normal
+      if (btnMenu[btnCounter].justReleased()) {
+        btnMenu[btnCounter].drawButton(false, btnText[btnCounter]);   // draw normal
 
-        if (type == MENU) ProcessMenu(b, menuBtnStartPos);            // Jump to new menu
-        if (type == MESSAGE_BOX) return b;                            // Return message button pressed
-        if (type == DISPLAY_BUTTON) return b + menuBtnStartPos;       // Return display button pressed
+        if (type == MENU) ProcessMenu(btnCounter, menuBtnStartPos);   // Jump to new menu
+        if (type == MESSAGE_BOX) return btnCounter;                   // Return message button pressed
+        if (type == DISPLAY_BUTTON) return btnCounter + menuBtnStartPos; // Return display button pressed
 
         Serial.printf("ERROR: Button type not handled correctly\n");
-        return b;
+        return btnCounter;
       }
     }
   } while (wait);
@@ -930,7 +908,7 @@ void ProcessMenu(uint8_t btnNumber, uint8_t menuBtnStartPos) {
 
 // Displays a message box on the display and allows the user to respond
 // Use options to specify buttons, i.e. BTN_OK + BTN_IGNORE + BTN_CANCEL
-uint16_t MessageBox(const char* title, const char* message, uint8_t options) {
+uint8_t MessageBox(const char* title, const char* message, uint8_t options) {
   debugLoop("Called\n");
   uint16_t result = 0;
   uint16_t boxX = TFT_Rectangle_ILI9341.width() * 0.05;
@@ -1074,15 +1052,16 @@ void OutputAnalyseCANBusResults() {
 #endif
 
   debugLoop("Called");
-  uint16_t result = MessageBox("Analyse CAN Bus Capacity", "Ensure the OBD2 device is connected to the car with the engine running.", BTN_OK + BTN_CANCEL);
+  uint8_t result = MessageBox("Analyse CAN Bus Capacity", "Ensure the OBD2 device is connected to the car with the engine running.", BTN_OK + BTN_CANCEL);
 
   debugLoop("MessageBox Returned Button %d", result);
 
   if (result == BTN_OK) {
     numberOfCANFramesReceived[0] = 0;
     numberOfCANFramesReceived[1] = 0;
-    uint16_t cfps[2] = { 0,0 };
-    uint32_t totalCANReceiveTime = 0;
+    uint8_t   percentageOfBusCapacity[2]{ 0,0 };
+    uint16_t  cfps[2] = { 0,0 };
+    uint32_t  totalCANReceiveTime = 0;
     CANBusFirstRun = false;
 
     // Clear the display and reset the program header
@@ -1130,8 +1109,8 @@ void OutputAnalyseCANBusResults() {
     // Check CAN Interface 0 CAN frames per second (cfps)
     totalCANReceiveTimeTimer = micros();                              // Set the timer for calculating the CAN Frames per Second (cfps) 
     while (micros() - totalCANReceiveTimeTimer < MEASURE_TIME) {          // Measure for 10 seconds
-      if (CANBusCheckRecieved(mcp2515_0)) {
-        if (CANBusReadCANData(mcp2515_0)) {
+      if (CANBusCheckRecieved(mcp2515_1)) {
+        if (CANBusReadCANData(mcp2515_1)) {
           CANFrameProcessing(0);
         }
       }
@@ -1140,22 +1119,21 @@ void OutputAnalyseCANBusResults() {
     totalCANReceiveTime = micros() - totalCANReceiveTimeTimer;
     cfps[0] = (float)numberOfCANFramesReceived[0] / totalCANReceiveTime * 1000000;
     // Calculate %
-    uint8_t percentageOfBusCapacity = 0.00;
     float timeTaken = 0.000000;                                         // define high precision floating point math
     timeTaken = (((float)totalCANReceiveTime / (float)1000000));        // time taken to read numberOfFramesReceived
     uint64_t bitsTx = 119 * numberOfCANFramesReceived[0];               // 119 bits (average based on small sample of FL2 live CAN Data).
     uint64_t bitRate = bitsTx / timeTaken;                              // bit rate used on the CAN bus
-    percentageOfBusCapacity = ((float)bitRate / 500000) * 100;          // the percentage used of the CAN bus
+    percentageOfBusCapacity[0] = ((float)bitRate / 500000) * 100;          // the percentage used of the CAN bus
     // Update table
-    TFT_Rectangle_ILI9341.drawCentreString(String(percentageOfBusCapacity) + "%", tableX + (tableFontW * 12), tableY + 20, 2);
+    TFT_Rectangle_ILI9341.drawCentreString(String(percentageOfBusCapacity[0]) + "%", tableX + (tableFontW * 12), tableY + 20, 2);
     TFT_Rectangle_ILI9341.drawCentreString(String(cfps[0]) + "cfps", tableX + (tableFontW * 22), tableY + 20, 2);
 
 
     // Check CAN Interface 1 CAN frames per second (cfps)
     totalCANReceiveTimeTimer = micros();                              // Set the timer for calculating the CAN Frames per Second (cfps) 
     while (micros() - totalCANReceiveTimeTimer < MEASURE_TIME) {          // Measure for 10 seconds
-      if (CANBusCheckRecieved(mcp2515_1)) {
-        if (CANBusReadCANData(mcp2515_1)) {
+      if (CANBusCheckRecieved(mcp2515_2)) {
+        if (CANBusReadCANData(mcp2515_2)) {
           CANFrameProcessing(1);
         }
       }
@@ -1164,14 +1142,13 @@ void OutputAnalyseCANBusResults() {
     totalCANReceiveTime = micros() - totalCANReceiveTimeTimer;
     cfps[1] = (float)numberOfCANFramesReceived[1] / totalCANReceiveTime * 1000000;
     // Calculate %
-    percentageOfBusCapacity = 0.00;
     timeTaken = 0.000000;                                               // define high precision floating point math
     timeTaken = (((float)totalCANReceiveTime / (float)1000000));        // time taken to read numberOfFramesReceived
     bitsTx = 119 * numberOfCANFramesReceived[1];                    // 119 bits (average based on small sample of FL2 live CAN Data).
     bitRate = bitsTx / timeTaken;                                    // bit rate used on the CAN bus
-    percentageOfBusCapacity = ((float)bitRate / 125000) * 100;          // the percentage used of the CAN bus
+    percentageOfBusCapacity[1] = ((float)bitRate / 125000) * 100;          // the percentage used of the CAN bus
     // Update table
-    TFT_Rectangle_ILI9341.drawCentreString(String(percentageOfBusCapacity) + "%", tableX + (tableFontW * 12), tableY + 40, 2);
+    TFT_Rectangle_ILI9341.drawCentreString(String(percentageOfBusCapacity[1]) + "%", tableX + (tableFontW * 12), tableY + 40, 2);
     TFT_Rectangle_ILI9341.drawCentreString(String(cfps[1]) + "cfps", tableX + (tableFontW * 22), tableY + 40, 2);
 
     // If cfps[] is Zero then we should fail these tests (i.e. no CAN Data detected)
@@ -1194,14 +1171,14 @@ void OutputAnalyseCANBusResults() {
     totalCANReceiveTimeTimer = micros();                              // Set the timer for calculating the CAN Frames per Second (cfps) 
     while (micros() - totalCANReceiveTimeTimer < MEASURE_TIME) {          // Measure for 10 seconds
       // Check the 500kbps bus as priority over 125kbps because 500kbps is faster and the buffers fill significantly more quickly
-      if (CANBusCheckRecieved(mcp2515_0)) {
-        if (CANBusReadCANData(mcp2515_0)) {
+      if (CANBusCheckRecieved(mcp2515_1)) {
+        if (CANBusReadCANData(mcp2515_1)) {
           CANFrameProcessing(0);
         }
       }
       // only check the 125kbps if there any no 500kbps messages in the MCP2515 buffers
-      else if (CANBusCheckRecieved(mcp2515_1)) {
-        if (CANBusReadCANData(mcp2515_1)) {
+      else if (CANBusCheckRecieved(mcp2515_2)) {
+        if (CANBusReadCANData(mcp2515_2)) {
           CANFrameProcessing(1);
         }
       }
@@ -1218,7 +1195,7 @@ void OutputAnalyseCANBusResults() {
     debugLoop("numberOfCANFramesReceived[0] = %d", numberOfCANFramesReceived[0]);
     debugLoop("totalCANReceiveTime = %dus", totalCANReceiveTime);
     debugLoop("cfpsCompare = %d", cfpsCompare);
-    debugLoop("cfps[0] = %d", cfps[0]);
+    debugLoop("cfps[0] = %d (%d%%)", cfps[0], percentageOfBusCapacity[0]);
 
     // If no CAN Bus data then fail the test
     if (cfps[0] == 0 || cfps[1] == 0) {
@@ -1240,7 +1217,7 @@ void OutputAnalyseCANBusResults() {
     debugLoop("numberOfCANFramesReceived[1] = %d", numberOfCANFramesReceived[1]);
     debugLoop("totalCANReceiveTime = %dus", totalCANReceiveTime);
     debugLoop("cfpsCompare = %d", cfpsCompare);
-    debugLoop("cfps[1] = %d", cfps[1]);
+    debugLoop("cfps[1] = %d (%d%%)", cfps[1], percentageOfBusCapacity[1]);
 
     // If cfps for Dual CAN Bus reading is ont within 1% of the cfps for Single CAN Bus then fail the test 
     if ((cfpsCompare < cfps[1] * 0.99) || (cfpsCompare > cfps[1] * 1.01)) { passed = false; }
@@ -1253,8 +1230,6 @@ void OutputAnalyseCANBusResults() {
     else {
       TFT_Rectangle_ILI9341.drawCentreString("No", tableX + (tableFontW * 31), tableY + 60, 2);
     }
-
-    TemporaryOutputResults();
 
     // Create an OK button to exit
     TFT_Rectangle_ILI9341.setFreeFont(&MENU_FONT);                    // Set the normal button font

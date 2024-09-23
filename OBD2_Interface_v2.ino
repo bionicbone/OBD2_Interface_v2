@@ -138,9 +138,28 @@ TFT_eSPI TFT_Rectangle_ILI9341 = TFT_eSPI();
 #define debugLoop(fmt, ...) Serial.printf("%s: " fmt "\r\n", __func__, ##__VA_ARGS__)  // Serial Debugging On
 
 // Enums
-enum          MESSAGE_BOX_BUTTONS { BTN_OK, BTN_IGNORE, BTN_CANCEL };
-enum          BUTTON_TYPES { MENU, MESSAGE_BOX };
-enum          OUTPUT_TYPES { Output_Analyse_CAN_Bus_Results, Output_Format_CanDrive, Output_Format_SavvyCan, Output_SD_Card_SavvyCAN, Output_WiFi };
+enum          CAN_INTERFACES {
+              CAN1 =    16,
+              CAN2 =    32,
+              CANBOTH = 48,
+};
+enum          MESSAGE_BOX_BUTTONS {
+              BTN_OK =      1,
+              BTN_IGNORE =  2,
+              BTN_CANCEL =  4,
+              BTN_STOP =    8, 
+              BTN_CAN1 =    16,
+              BTN_CAN2 =    32 };
+enum          BUTTON_TYPES { 
+              MENU, 
+              MESSAGE_BOX, 
+              DISPLAY_BUTTON };
+enum          OUTPUT_TYPES { 
+              Output_Analyse_CAN_Bus_Results, 
+              Output_Format_CanDrive, 
+              Output_Format_SavvyCan, 
+              Output_SD_Card_SavvyCAN, 
+              Output_WiFi };
 
 
 // Constants & ESP32-S3 pin declarations
@@ -179,6 +198,11 @@ void actionOutputChange(uint16_t arg) {
   switch (outputFormat) {
   case Output_Analyse_CAN_Bus_Results:
     OutputAnalyseCANBusResults();
+    break;
+
+  // TODO we maybe able to use Menu structure to jump straight to StartReadingCanBus()
+  case Output_Format_CanDrive:
+    StartReadingCanBus();
     break;
 
   default:
@@ -262,7 +286,7 @@ void setup() {
   Serial.printf("ESP-IDF     : %s\n",esp_get_idf_version());
   Serial.printf("Arduino Core: v%d.%d.%d\n", ESP_ARDUINO_VERSION_MAJOR, ESP_ARDUINO_VERSION_MINOR, ESP_ARDUINO_VERSION_PATCH);
   // Check the ESP32 Arduino Core used to compile the code has been validated 
-  if (ESP_ARDUINO_VERSION > ESP_ARDUINO_VERSION_VAL(2, 0, 16)) {
+  if (ESP_ARDUINO_VERSION != ESP_ARDUINO_VERSION_VAL(2, 0, 17)) {
     Serial.printf("\n\n");
     Serial.printf("This ESP Arduino Core Version has not been tested\n");
     Serial.printf("To ensure full compatibility use ESP32 Arduino Core v2.0.17\n");
@@ -305,25 +329,7 @@ void loop() {
 
   //while (numberOfCANFramesReceived[0] < 10000) {
 
-  //  /*
-  //      For information
-  //      As part of the MCP2515 CAN Bus Controllers are 3 Rx buffers in each, thus 3 for the 500kbps, and 3 for the 125kbps CAN Bus.
-  //      500kbps CAN Bus will fill in a minimum period of 666us
-  //      125kbps CAN bus will fill in a minimum period of 2664us
-  //  */
 
-  //  // Check the 500kbps bus as priority over 125kbps because 500kbps is faster and the buffers fill significantly more quickly
-  //  if (CANBusCheckRecieved(mcp2515_0)) {
-  //    if (CANBusReadCANData(mcp2515_0)) {
-  //      CANFrameProcessing(0);
-  //    }
-  //  }
-  //  // only check the 125kbps if there any no 500kbps messages in the MCP2515 buffers
-  //  else if (CANBusCheckRecieved(mcp2515_1)) {
-  //    if (CANBusReadCANData(mcp2515_1)) {
-  //      CANFrameProcessing(1);
-  //    }
-  //  }
 
   //}
  
@@ -335,6 +341,88 @@ void loop() {
 
 
 // Main Program Functions
+
+void StartReadingCanBus() {
+    /*
+      For information
+      As part of the MCP2515 CAN Bus Controllers are 3 Rx buffers in each, thus 3 for the 500kbps, and 3 for the 125kbps CAN Bus.
+      500kbps CAN Bus will fill in a minimum period of 666us
+      125kbps CAN bus will fill in a minimum period of 2664us
+    */
+  
+  debugLoop("Called\n");
+
+  // Reset the display
+  ClearDisplay();
+
+  uint16_t interfaceNumber = 0;
+  
+  switch (outputFormat) {
+  case Output_Format_CanDrive:
+    // CanDrive only supports one interface at a time, user must select one first
+    interfaceNumber = MessageBox("Select Interface", "CanDrive only supports reading one CAN interface at a time. Please select which one.", BTN_CAN1 + BTN_CAN2);
+    debugLoop("interfaceNumber = %d", interfaceNumber);
+
+    TFT_Rectangle_ILI9341.setTextColor(TFT_GREEN);
+    TFT_Rectangle_ILI9341.drawCentreString("Outputting CAN Bus data in CanDrive format", 160, 25, 2);
+    TFT_Rectangle_ILI9341.drawCentreString("to the USB Port at 2,000,000 baud.", 160, 45, 2);
+    TFT_Rectangle_ILI9341.drawCentreString("Connect PC with CanDrive running to see", 160, 65, 2);
+    TFT_Rectangle_ILI9341.drawCentreString("and filter the Live CAN BUS Data.", 160, 85, 2);
+    TFT_Rectangle_ILI9341.drawCentreString("Press STOP to end the output.", 160, 105, 2);
+    TFT_Rectangle_ILI9341.setTextColor(TFT_BLACK);
+    break;
+
+  default:
+    break;
+  }
+
+  // Create a STOP button to exit
+  TFT_Rectangle_ILI9341.setFreeFont(&MENU_FONT);                    // Set the normal button font
+  char handler[1] = "";
+  uint16_t xButtonWidth = TFT_Rectangle_ILI9341.textWidth("A") * 5;
+  uint16_t yButtonHeight = TFT_Rectangle_ILI9341.fontHeight() * 1.2;
+  uint16_t xButtonMiddle = TFT_Rectangle_ILI9341.width() - (xButtonWidth / 2);
+  uint16_t yButtonMiddle = TFT_Rectangle_ILI9341.height() - (yButtonHeight / 2);
+  const char* messageBtnText[1] = { "STOP" };
+  btnText[0] = messageBtnText[0];                                   // Must capture btnText for the ProcessButtons() function
+  btnMenu[0].initButton(&TFT_Rectangle_ILI9341,
+    xButtonMiddle,
+    yButtonMiddle,
+    xButtonWidth,
+    yButtonHeight,
+    TFT_YELLOW, TFT_BLUE, TFT_YELLOW, handler, 1);                  // initButton limits the amount of text drawn, draw text in the drawButton() function
+  btnMenu[0].drawButton(false, messageBtnText[0]);                  // Specifiy the text for the button because initButton will not display the full text length
+  btnMenu[0].press(false);                                          // Because I am reusing buttons it is important to tell the button it is NOT pressed
+
+
+
+  while (true) {
+    // Check the 500kbps bus as priority over 125kbps because 500kbps is faster
+    // and the buffers fill significantly more quickly
+    if (CANBusCheckRecieved(mcp2515_0) && (interfaceNumber & CAN1)) {
+      if (CANBusReadCANData(mcp2515_0)) {
+        debugLoop("mcp2515_0 read");
+        CANFrameProcessing(0);
+      }
+    }
+    // only check the 125kbps if there any no 500kbps messages in the MCP2515 buffers
+    else if (CANBusCheckRecieved(mcp2515_1) && (interfaceNumber & CAN2)) {
+      if (CANBusReadCANData(mcp2515_1)) {
+        debugLoop("mcp2515_1 read");
+        CANFrameProcessing(1);
+      }
+    }
+    else {
+      // If no CAN Bus data use the time to check the STOP Button
+      uint8_t result = ProcessButtons(DISPLAY_BUTTON, 1, BTN_STOP, false);
+      
+      debugLoop("MessageBox result = %d (zero-based indexing)", result);
+      
+      if (result == BTN_STOP) return;
+    }
+  }
+}
+
 
 // Processes the CAN Frame and triggers the required output
 // For Land Rover Freelander 2 set:
@@ -351,7 +439,17 @@ void CANFrameProcessing(uint8_t whichCANBus) {
   numberOfCANFramesReceived[whichCANBus]++;
 
 
-  SDCardCANFrameSavvyCANOutput(whichCANBus);
+  switch (outputFormat) {
+  case Output_Format_CanDrive:
+    OutputFormatCanDrive(frame.can_id, frame.can_dlc, frame.data, whichCANBus);
+      break;
+
+  default:
+    break;
+  }
+  // Trigger the correct output here
+
+  //SDCardCANFrameSavvyCANOutput(whichCANBus);
 }
 
 
@@ -680,7 +778,7 @@ void DrawHorizontalMenu(int16_t yOffset, GFXfont menuFont) {
     btnMenu[menuButtons].press(false);                                // Because I am reusing buttons it is important to tell the button it is NOT pressed
     menuButtons++;                                                    // Add the button to the Global Variable that tracks the number of active buttons 
   }
-  ProcessButtons(MENU, menuButtons, menuBtnStartPos);
+  ProcessButtons(MENU, menuButtons, menuBtnStartPos, true);
 }
 
 
@@ -746,25 +844,30 @@ void DrawVerticalMenu(int16_t yOffset, GFXfont headerFont, GFXfont menuFont) {
     }
     menuPosition++;
   }
-  ProcessButtons(MENU, menuButtons, menuBtnStartPos);
+  ProcessButtons(MENU, menuButtons, menuBtnStartPos, true);
 }
 
 
 // Checks if any active buttons on the display have been pressed
 // Once called it will wait for a button to be pressed
 // type: 0 = Menu, 1 = MessageBox
+// NOTE: Overload automatically sets wait (for button press) = true
 uint8_t ProcessButtons(uint8_t type, uint8_t numberOfButtons) {          // overload
   debugLoop("Called (without menuBtnStartPos overload)\n");
-  uint8_t result = ProcessButtons(type, numberOfButtons, 0);
+  uint8_t result = ProcessButtons(type, numberOfButtons, 0, true);
   return result;
 }
 
 // Checks if any active buttons on the display have been pressed
 // Once called it will wait for a button to be pressed
 // type: 0 = Menu, 1 = MessageBox
-uint8_t ProcessButtons(uint8_t type, uint8_t numberOfButtons, uint8_t menuBtnStartPos) {
-  debugLoop("Called (with menuBtnStartPos overload)\n");
-  while (true) {   // for now create an endless loop until a button is pressed
+// wait (for button press): true or false
+// Returns: number of button pressed or 99 if no button pressed
+uint8_t ProcessButtons(uint8_t type, uint8_t numberOfButtons, uint8_t menuBtnStartPos, bool wait) {
+  debugLoop("Called (with menuBtnStartPos overload)");
+  debugLoop("wait = %d\n", wait);
+  
+  do {   // for now create an endless loop until a button is pressed
 
     uint16_t t_x = 0, t_y = 0;                                        // To store the touch coordinates
 
@@ -794,11 +897,16 @@ uint8_t ProcessButtons(uint8_t type, uint8_t numberOfButtons, uint8_t menuBtnSta
       if (btnMenu[b].justReleased()) {
         btnMenu[b].drawButton(false, btnText[b]);                     // draw normal
 
-        if (type == MENU) ProcessMenu(b, menuBtnStartPos);
+        if (type == MENU) ProcessMenu(b, menuBtnStartPos);            // Jump to new menu
+        if (type == MESSAGE_BOX) return b;                            // Return message button pressed
+        if (type == DISPLAY_BUTTON) return b + menuBtnStartPos;       // Return display button pressed
+
+        Serial.printf("ERROR: Button type not handled correctly\n");
         return b;
       }
     }
-  }
+  } while (wait);
+  return 99;
 }
 
 
@@ -885,10 +993,11 @@ uint16_t MessageBox(const char* title, const char* message, uint8_t options) {
   const char* messageBtnText[3] = { "","","" };
   uint16_t messageButtonPos[3] = { 0,0,0 };
 
-  messageBtnText[numberOfOptionButtons] = "OK";                      // Always required
-  numberOfOptionButtons++;
+  if (options & BTN_OK) { messageBtnText[numberOfOptionButtons] = "OK"; numberOfOptionButtons++; }
   if (options & BTN_IGNORE) { messageBtnText[numberOfOptionButtons] = "IGNORE"; numberOfOptionButtons++; }
   if (options & BTN_CANCEL) { messageBtnText[numberOfOptionButtons] = "CANCEL"; numberOfOptionButtons++; }
+  if (options & BTN_CAN1) { messageBtnText[numberOfOptionButtons] = "CAN 1"; numberOfOptionButtons++; }
+  if (options & BTN_CAN2) { messageBtnText[numberOfOptionButtons] = "CAN 2"; numberOfOptionButtons++; }
 
   debugLoop("MessageBox numberOfOptionButtons = %d", numberOfOptionButtons);
 
@@ -933,10 +1042,17 @@ uint16_t MessageBox(const char* title, const char* message, uint8_t options) {
   ClearDisplay();
 
   // Evaluate the user choice to the MESSAGE_BOX enum values
+  // TODO link enum to result by value rather than button text, but not sure how :)
+  const char* helper0 = "OK";
   const char* helper1 = "IGNORE";
   const char* helper2 = "CANCEL";
-  if (messageBtnText[result] == helper1) result = BTN_IGNORE;
+  const char* helper3 = "CAN 1";
+  const char* helper4 = "CAN 2";
+  if (messageBtnText[result] == helper0) result = BTN_OK;
+  else if (messageBtnText[result] == helper1) result = BTN_IGNORE;
   else if (messageBtnText[result] == helper2) result = BTN_CANCEL;
+  else if (messageBtnText[result] == helper3) result = BTN_CAN1;
+  else if (messageBtnText[result] == helper4) result = BTN_CAN2;
 
   return result;
 }
@@ -957,7 +1073,7 @@ void OutputAnalyseCANBusResults() {
   #warning "OutputAnalyseCANBusResults() IS NOT EQUAL to 10000000"
 #endif
 
-    debugLoop("Called");
+  debugLoop("Called");
   uint16_t result = MessageBox("Analyse CAN Bus Capacity", "Ensure the OBD2 device is connected to the car with the engine running.", BTN_OK + BTN_CANCEL);
 
   debugLoop("MessageBox Returned Button %d", result);
@@ -1172,7 +1288,32 @@ void OutputAnalyseCANBusResults() {
 }
 
 
+void OutputFormatCanDrive(ulong rxId, uint8_t len, uint8_t rxBuf[], uint8_t MCP2515number) {
+  // canDrive Format
+  // ID,0,0,DLC,D0,D1,D2,D3,D4,D5,D6,D7
+  // 00025574,1,145,0,0,8,00,0F,A0,00,00,00,04,12
+  debugLoop("called, MCP2515number = % d", MCP2515number);
+  char msgString[128];                                                // Array to store serial string
+  if ((rxId & 0x80000000) == 0x80000000)                              // Determine if ID is standard (11 bits) or extended (29 bits)
+    sprintf(msgString, "%.8lX,0,0,", (rxId & 0x1FFFFFFF));
+  else
+    sprintf(msgString, "%.3lX,0,0,", rxId);
 
+
+  Serial.print(msgString);
+
+  if ((rxId & 0x40000000) == 0x40000000) {                            // Determine if message is a remote request frame.
+    sprintf(msgString, " REMOTE REQUEST FRAME");
+    Serial.print(msgString);
+  }
+  else {
+    for (byte i = 0; i < len; i++) {
+      sprintf(msgString, "%.2X", rxBuf[i]);
+      Serial.print(msgString);
+    }
+  }
+  Serial.print("\n");
+}
 
 
 

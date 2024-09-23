@@ -1264,9 +1264,12 @@ void OutputAnalyseCANBusResults() {
 
 
 void OutputFormatCanDrive(ulong rxId, uint8_t len, uint8_t rxBuf[], uint8_t MCP2515number) {
-  // canDrive Format
-  // ID,0,0,DLC,D0,D1,D2,D3,D4,D5,D6,D7
-  // 00025574,1,145,0,0,8,00,0F,A0,00,00,00,04,12
+  // canDrive Format - Validated as working Sep 2024
+  // 151,0,0,025B8151025B8151
+  // 152,0,0,025B8152025B8152
+  // 153,0,0,025B8153025B8153
+  // 154,0,0,025B8154025B8154
+  // 155,0,0,025B8155025B8155
   debugLoop("called, MCP2515number = % d", MCP2515number);
   char msgString[128];                                                // Array to store serial string
   if ((rxId & 0x80000000) == 0x80000000)                              // Determine if ID is standard (11 bits) or extended (29 bits)

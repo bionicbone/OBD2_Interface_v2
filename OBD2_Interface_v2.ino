@@ -274,7 +274,8 @@ TFT_eSPI_Button btnMenu[5];
 
 
 
-
+// Setup Serial, SD_CARD, CAN Bus, and Display
+// Also check the Arduino CORE used to compile the code has been validated
 void setup() {
   // Serial needs to be at least 2,000,000 baud otherwise lines will be dropped when outputting CAN lines to the standard serial output display.
   while (!Serial) { Serial.begin(STANDARD_SERIAL_OUTPUT_BAUD); delay(100); }
@@ -317,25 +318,29 @@ void setup() {
   if (versionMessageBoxRequired) {
     MessageBox("WARNING", "To ensure full compatibility use ESP32 Arduino Core v2.0.17\n\n*!* USE WITH CAUTION *!*", BTN_OK);
   }
-
-  // Draw the initial Title and Menu
-  DrawHorizontalMenu(TOP_MENU_Y_OFFSET, MENU_FONT);
 }
 
 
+// At the end of each function we return here to reset and show the main root menu
 void loop() {
-  debugLoop("loop() Called");
-  delay(1000);
+  debugLoop("Called");
 
-  //while (numberOfCANFramesReceived[0] < 10000) {
+  // Reset required Global Control Variables
+  // TODO - Review each Global Variable to see if it really needs to be Global
+  totalCANReceiveTimeTimer = 0;                                       // Times how long we have been receiving CAN Frames
+  numberOfCANFramesReceived[0] = 0;                                   // Counts the number of CAN Frames received
+  numberOfCANFramesReceived[1] = 0;                                   // Counts the number of CAN Frames received
+  menuCurrentlyDisplayed = 0;                                         // Tracks the menu displayed
+  btnText[0] = "";                                                    // Text displayed in each valid button, used for the inversing
+  btnText[1] = "";                                                    // Text displayed in each valid button, used for the inversing
+  btnText[2] = "";                                                    // Text displayed in each valid button, used for the inversing
+  btnText[3] = "";                                                    // Text displayed in each valid button, used for the inversing
+  btnText[4] = "";                                                    // Text displayed in each valid button, used for the inversing
+  outputFormat = false;                                               // Tracks the required output type
 
-
-
-  //}
- 
-  
-  //TemporaryOutputResults();
-
+  // Clear display and redraw the Title and Menu
+  menu = menuRoot;                                                    // After the code function returns jump back to the root menu
+  DrawHorizontalMenu(TOP_MENU_Y_OFFSET, MENU_FONT);
 }
 
 
@@ -875,11 +880,14 @@ uint8_t ProcessButtons(uint8_t type, uint8_t numberOfButtons, uint8_t menuBtnSta
       if (btnMenu[btnCounter].justReleased()) {
         btnMenu[btnCounter].drawButton(false, btnText[btnCounter]);   // draw normal
 
-        if (type == MENU) ProcessMenu(btnCounter, menuBtnStartPos);   // Jump to new menu
+        if (type == MENU) {
+          ProcessMenu(btnCounter, menuBtnStartPos);                   // Jump to new menu
+          return 99;
+        }
         if (type == MESSAGE_BOX) return btnCounter;                   // Return message button pressed
         if (type == DISPLAY_BUTTON) return btnCounter + menuBtnStartPos; // Return display button pressed
 
-        Serial.printf("ERROR: Button type not handled correctly\n");
+        Serial.printf("ERROR: Button type not handled correctly, type = %d\n", type);
         return btnCounter;
       }
     }
@@ -899,9 +907,6 @@ void ProcessMenu(uint8_t btnNumber, uint8_t menuBtnStartPos) {
   }
   else if (A == menu[btnNumber + menuBtnStartPos].action) {           // User selection calls a code function
     menu[btnNumber + menuBtnStartPos].func(menu[btnNumber + menuBtnStartPos].arg);
-
-    menu = menuRoot;                                                  // After the code function returns jump back to the root menu
-    DrawHorizontalMenu(TOP_MENU_Y_OFFSET, MENU_FONT);
   }
 }
 
@@ -1250,13 +1255,10 @@ void OutputAnalyseCANBusResults() {
     btnMenu[0].press(false);                                          // Because I am reusing buttons it is important to tell the button it is NOT pressed
 
     result = ProcessButtons(MESSAGE_BOX, 1);
-    return;
+    return;                                                           // Back to root menu
   }
   else if (result == BTN_CANCEL) {
-    // Dislpay Root Menu
-    menu = menuRoot;
-    DrawHorizontalMenu(TOP_MENU_Y_OFFSET, MENU_FONT);
-    return;
+    return;                                                           // Back to root menu
   }
 
   while (true) { Serial.printf("OutputAnalyseCANBusResults MessageBox result"); delay(1000); }

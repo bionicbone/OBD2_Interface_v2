@@ -376,8 +376,6 @@ void StartReadingCanBus() {
   
   debugLoop("Called, outputFormat = %d", outputFormat);
 
-  uint32_t stopBtnTimer = millis();
-
   // Reset the display
   ClearDisplay();
 
@@ -448,7 +446,8 @@ void StartReadingCanBus() {
   btnMenu[0].press(false);                                          // Because I am reusing buttons it is important to tell the button it is NOT pressed
 
 
-
+  bool stopBtnError = true;
+  uint32_t stopBtnTimer = millis();
   while (true) {
     // Check the 500kbps bus as priority over 125kbps because 500kbps is faster
     // and the buffers fill significantly more quickly
@@ -467,12 +466,22 @@ void StartReadingCanBus() {
     }
     else {
       // If no CAN Bus data use the time to check the STOP Button
-      stopBtnTimer -= 500;                                            // Force STOP button to be read
+      stopBtnTimer -= 500;                                            // Force STOP button to be read while we have a gap in data
+      stopBtnError = false;                                           // stopBtnTimer was called correctly
     }
     // In the case where the ESP32 is struggling to keep up with the incoming CAN Frames
     // it is possible that the above else is never executed.
     // Therefore every 0.5 seconds we force a check of the STOP button
     if (millis() - stopBtnTimer > 500) {
+      if (stopBtnError) {
+        TFT_Rectangle_ILI9341.setTextColor(TFT_RED, TFT_YELLOW, true);
+        TFT_Rectangle_ILI9341.setTextDatum(TL_DATUM);
+        TFT_Rectangle_ILI9341.drawString(String(" *!* Possible Lost CAN Frames *!* "), 30, 218, 2);
+        TFT_Rectangle_ILI9341.setTextColor(TFT_WHITE, TFT_LANDROVERGREEN, true);
+        TFT_Rectangle_ILI9341.setTextDatum(MC_DATUM);
+      }
+      stopBtnError = true;
+
       uint8_t result = ProcessButtons(DISPLAY_BUTTON, 1, BTN_STOP, false);
       stopBtnTimer = millis();                                        // Reset the STOP button timer
 

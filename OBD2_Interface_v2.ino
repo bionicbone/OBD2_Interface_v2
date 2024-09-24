@@ -133,9 +133,17 @@ TFT_eSPI TFT_Rectangle_ILI9341 = TFT_eSPI();
 */
 
 
-// Debugging Options (ESP32 Version) - Choose at least one!
-//#define debugLoop(fmt, ...) // Serial Debugging Off
-#define debugLoop(fmt, ...) Serial.printf("%s: " fmt "\r\n", __func__, ##__VA_ARGS__)  // Serial Debugging On
+// Debugging Options (ESP32 Version)
+// DEBUG 0 = Debugging Serial Messages are switched off
+// DEBUG 1 = Debugging Serial Messages are switched on
+#define DEBUG 1
+
+#if DEBUG > 0
+#define debugLoop(fmt, ...) Serial.printf("%s: " fmt "\r\n", __func__, ##__VA_ARGS__) // Serial Debugging On
+#else
+#define debugLoop(fmt, ...)                                           // Serial Debugging Off
+#endif
+
 
 // Enums
 enum          CAN_INTERFACES {
@@ -709,6 +717,12 @@ void ClearDisplay() {
   debugLoop("Called\n");
   TFT_Rectangle_ILI9341.setRotation(3);
   TFT_Rectangle_ILI9341.fillScreen(TFT_LANDROVERGREEN);
+  // Ensure the user is reminded if in DEBUG mode
+#if DEBUG > 0
+  TFT_Rectangle_ILI9341.setTextColor(TFT_RED, TFT_YELLOW, true);
+  TFT_Rectangle_ILI9341.setTextDatum(TL_DATUM);
+  TFT_Rectangle_ILI9341.drawString(String("DEBUG"), TFT_Rectangle_ILI9341.width() - 120, 0, TOP_MENU_FONT);
+#endif
   TFT_Rectangle_ILI9341.setTextColor(TFT_WHITE, TFT_LANDROVERGREEN, true);
   TFT_Rectangle_ILI9341.setTextDatum(TL_DATUM);
   TFT_Rectangle_ILI9341.drawString(TOP_MENU_PROGRAM_NAME, 0, 0, TOP_MENU_FONT);

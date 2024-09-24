@@ -149,7 +149,7 @@ TFT_eSPI TFT_Rectangle_ILI9341 = TFT_eSPI();
 enum          CAN_INTERFACES {
               CAN1 =    16,
               CAN2 =    32,
-              CANBOTH = 48,
+              CANBOTH = 64,
 };
 enum          MESSAGE_BOX_BUTTONS {
               BTN_OK =      1,
@@ -157,7 +157,8 @@ enum          MESSAGE_BOX_BUTTONS {
               BTN_CANCEL =  4,
               BTN_STOP =    8, 
               BTN_CAN1 =    16,
-              BTN_CAN2 =    32 };
+              BTN_CAN2 =    32,
+              BTN_CANBOTH = 64 };
 enum          BUTTON_TYPES { 
               MENU, 
               MESSAGE_BOX, 
@@ -189,7 +190,6 @@ const auto    MENU_FONT = FreeSansOblique9pt7b;                       // Font us
 const auto    MENU_Y_OFFSET = 68;                                     // Used to position the menu just under the Menu Header
 
 // Control variables
-bool          sdCardFirstRun = false;                                 // Will set to true when SD Card initialises, trigger for SavvyCAN header
 bool          CANBusFirstRun = false;                                 // Will set to true when CAN Bus mode changes, trigger for cfps timer to start
 uint32_t      totalCANReceiveTimeTimer = 0;                           // Times how long we have been receiving CAN Frames
 uint16_t      numberOfCANFramesReceived[2] = { 0,0 };                 // Counts the number of CAN Frames received
@@ -208,8 +208,15 @@ void actionOutputChange(uint16_t arg) {
     OutputAnalyseCANBusResults();
     break;
 
-  // TODO we maybe able to use Menu structure to jump straight to StartReadingCanBus()
   case OUTPUT_FORMAT_CANDRIVE:
+    StartReadingCanBus();
+    break;
+
+  case OUTPUT_FORMAT_SAVVYCAN:
+    StartReadingCanBus();
+    break;
+
+  case OUTPUT_SD_CARD_SAVVYCAN:
     StartReadingCanBus();
     break;
 
@@ -347,6 +354,9 @@ void loop() {
   btnText[4] = "";                                                    // Text displayed in each valid button, used for the inversing
   outputFormat = false;                                               // Tracks the required output type
 
+  // Ensure the SD Card is OK to eject
+  SD_Port.flush();
+
   // Clear display and redraw the Title and Menu
   menu = menuRoot;                                                    // After the code function returns jump back to the root menu
   DrawVerticalMenu(MENU_Y_OFFSET, MENU_BOLD_FONT, MENU_FONT);
@@ -364,7 +374,9 @@ void StartReadingCanBus() {
       125kbps CAN bus will fill in a minimum period of 2664us
     */
   
-  debugLoop("Called");
+  debugLoop("Called, outputFormat = %d", outputFormat);
+
+  uint32_t stopBtnTimer = millis();
 
   // Reset the display
   ClearDisplay();
@@ -382,6 +394,33 @@ void StartReadingCanBus() {
     TFT_Rectangle_ILI9341.drawCentreString("to the USB Port at 2,000,000 baud.", 160, 45, 2);
     TFT_Rectangle_ILI9341.drawCentreString("Connect PC with CanDrive running to see", 160, 65, 2);
     TFT_Rectangle_ILI9341.drawCentreString("and filter the Live CAN BUS Data.", 160, 85, 2);
+    TFT_Rectangle_ILI9341.drawCentreString("Press STOP to end the output.", 160, 105, 2);
+    TFT_Rectangle_ILI9341.setTextColor(TFT_BLACK);
+    break;
+
+  case OUTPUT_FORMAT_SAVVYCAN:
+    // CanDrive only supports one interface at a time, user must select one first
+    interfaceNumber = MessageBox("Select Interface", "SavvyCAN can read single or both CAN interfaces. Please select an option.", BTN_CAN1 + BTN_CAN2 + BTN_CANBOTH);
+    debugLoop("interfaceNumber = %d", interfaceNumber);
+
+    TFT_Rectangle_ILI9341.setTextColor(TFT_GREEN);
+    TFT_Rectangle_ILI9341.drawCentreString("Outputting CAN Bus data in SavvyCAN format", 160, 25, 2);
+    TFT_Rectangle_ILI9341.drawCentreString("to the USB Port at 2,000,000 baud.", 160, 45, 2);
+    TFT_Rectangle_ILI9341.drawCentreString("Connect PC with suitable recording program.", 160, 65, 2);
+    TFT_Rectangle_ILI9341.drawCentreString("Press STOP to end the output.", 160, 85, 2);
+    TFT_Rectangle_ILI9341.setTextColor(TFT_BLACK);
+    break;
+
+  case OUTPUT_SD_CARD_SAVVYCAN:
+    // CanDrive only supports one interface at a time, user must select one first
+    interfaceNumber = MessageBox("Select Interface", "SavvyCAN can read single or both CAN interfaces. Please select an option.", BTN_CAN1 + BTN_CAN2 + BTN_CANBOTH);
+    debugLoop("interfaceNumber = %d", interfaceNumber);
+
+    TFT_Rectangle_ILI9341.setTextColor(TFT_GREEN);
+    TFT_Rectangle_ILI9341.drawCentreString("Saving CAN Bus data in SavvyCAN format", 160, 25, 2);
+    TFT_Rectangle_ILI9341.drawCentreString("to SD Card at 2,000,000 baud.", 160, 45, 2);
+    TFT_Rectangle_ILI9341.drawCentreString("Ensure the SD Card must be formatted using", 160, 65, 2);
+    TFT_Rectangle_ILI9341.drawCentreString("FAT32 and be a good quality 32gb or less.", 160, 85, 2);
     TFT_Rectangle_ILI9341.drawCentreString("Press STOP to end the output.", 160, 105, 2);
     TFT_Rectangle_ILI9341.setTextColor(TFT_BLACK);
     break;
@@ -413,14 +452,14 @@ void StartReadingCanBus() {
   while (true) {
     // Check the 500kbps bus as priority over 125kbps because 500kbps is faster
     // and the buffers fill significantly more quickly
-    if (CANBusCheckRecieved(mcp2515_1) && (interfaceNumber & CAN1)) {
+    if (CANBusCheckRecieved(mcp2515_1) && ((interfaceNumber & CAN1) || (interfaceNumber & CANBOTH))) {
       if (CANBusReadCANData(mcp2515_1)) {
         debugLoop("mcp2515_1 read");
         CANFrameProcessing(1);
       }
     }
     // only check the 125kbps if there any no 500kbps messages in the MCP2515 buffers
-    else if (CANBusCheckRecieved(mcp2515_2) && (interfaceNumber & CAN2)) {
+    else if (CANBusCheckRecieved(mcp2515_2) && ((interfaceNumber & CAN2) || (interfaceNumber & CANBOTH))) {
       if (CANBusReadCANData(mcp2515_2)) {
         debugLoop("mcp2515_2 read");
         CANFrameProcessing(2);
@@ -428,10 +467,17 @@ void StartReadingCanBus() {
     }
     else {
       // If no CAN Bus data use the time to check the STOP Button
+      stopBtnTimer -= 500;                                            // Force STOP button to be read
+    }
+    // In the case where the ESP32 is struggling to keep up with the incoming CAN Frames
+    // it is possible that the above else is never executed.
+    // Therefore every 0.5 seconds we force a check of the STOP button
+    if (millis() - stopBtnTimer > 500) {
       uint8_t result = ProcessButtons(DISPLAY_BUTTON, 1, BTN_STOP, false);
-      
+      stopBtnTimer = millis();                                        // Reset the STOP button timer
+
       debugLoop("MessageBox result = %d (zero-based indexing)", result);
-      
+
       if (result == BTN_STOP) return;
     }
   }
@@ -458,6 +504,14 @@ void CANFrameProcessing(uint8_t whichCANBus) {
     OutputFormatCanDrive(frame.can_id, frame.can_dlc, frame.data, whichCANBus);
       break;
 
+  case OUTPUT_FORMAT_SAVVYCAN:
+    outputFormatSavvyCAN(frame.can_id, frame.can_dlc, frame.data, whichCANBus);
+    break;
+
+  case OUTPUT_SD_CARD_SAVVYCAN:
+    OutputSDCardSavvyCAN(frame.can_id, frame.can_dlc, frame.data, whichCANBus);
+    break;
+
   default:
     break;
   }
@@ -482,21 +536,22 @@ void SDCardStart(uint8_t TxPin) {
   }
   delay(1000);                                                        // For start up stability (corruption was noticed if we try to write immediately)
   debugLoop("SD Card writer initialised\n");
-  sdCardFirstRun = true;
 }
 
+
+//  *!* Depreciated Code *!*
 // Writes a CAN Frame to the SD Card Device (OpenLager) in SavvyCAN compatible format
 void SDCardCANFrameSavvyCANOutput(uint8_t whichCANBus) {
-  if(sdCardFirstRun){ 
-    SD_Port.printf("Time Stamp,ID,Extended,Bus,LEN,D1,D2,D3,D4,D5,D6,D7,D8\n"); 
-    sdCardFirstRun = false; 
-  }
+  //if(sdCardFirstRun){ 
+  //  SD_Port.printf("Time Stamp,ID,Extended,Bus,LEN,D1,D2,D3,D4,D5,D6,D7,D8\n"); 
+  //  sdCardFirstRun = false; 
+  //}
 
-  String helperString =
-    String(micros()) + "," + String(frame.can_id, HEX) + ",false," + String(whichCANBus) + "," + String(frame.can_dlc) + ","
-    + String(frame.data[0], HEX) + "," + String(frame.data[1], HEX) + "," + String(frame.data[2], HEX) + "," + String(frame.data[3], HEX) + ","
-    + String(frame.data[4], HEX) + "," + String(frame.data[5], HEX) + "," + String(frame.data[6], HEX) + "," + String(frame.data[7], HEX) + "\n";
-  SD_Port.printf(helperString.c_str());
+  //String helperString =
+  //  String(micros()) + "," + String(frame.can_id, HEX) + ",false," + String(whichCANBus) + "," + String(frame.can_dlc) + ","
+  //  + String(frame.data[0], HEX) + "," + String(frame.data[1], HEX) + "," + String(frame.data[2], HEX) + "," + String(frame.data[3], HEX) + ","
+  //  + String(frame.data[4], HEX) + "," + String(frame.data[5], HEX) + "," + String(frame.data[6], HEX) + "," + String(frame.data[7], HEX) + "\n";
+  //SD_Port.printf(helperString.c_str());
 }
 
 
@@ -997,6 +1052,7 @@ uint8_t MessageBox(const char* title, const char* message, uint8_t options) {
   if (options & BTN_CANCEL) { messageBtnText[numberOfOptionButtons] = "CANCEL"; numberOfOptionButtons++; }
   if (options & BTN_CAN1) { messageBtnText[numberOfOptionButtons] = "CAN 1"; numberOfOptionButtons++; }
   if (options & BTN_CAN2) { messageBtnText[numberOfOptionButtons] = "CAN 2"; numberOfOptionButtons++; }
+  if (options & BTN_CANBOTH) { messageBtnText[numberOfOptionButtons] = "BOTH"; numberOfOptionButtons++; }
 
   debugLoop("MessageBox numberOfOptionButtons = %d", numberOfOptionButtons);
 
@@ -1047,11 +1103,13 @@ uint8_t MessageBox(const char* title, const char* message, uint8_t options) {
   const char* helper2 = "CANCEL";
   const char* helper3 = "CAN 1";
   const char* helper4 = "CAN 2";
+  const char* helper5 = "BOTH";
   if (messageBtnText[result] == helper0) result = BTN_OK;
   else if (messageBtnText[result] == helper1) result = BTN_IGNORE;
   else if (messageBtnText[result] == helper2) result = BTN_CANCEL;
   else if (messageBtnText[result] == helper3) result = BTN_CAN1;
   else if (messageBtnText[result] == helper4) result = BTN_CAN2;
+  else if (messageBtnText[result] == helper5) result = BTN_CANBOTH;
 
   return result;
 }
@@ -1312,8 +1370,59 @@ void OutputFormatCanDrive(ulong rxId, uint8_t len, uint8_t rxBuf[], uint8_t MCP2
 }
 
 
+void outputFormatSavvyCAN(ulong rxId, uint8_t len, uint8_t rxBuf[], uint8_t MCP2515number) {
+  // SavvyCan Format (.GVRET file format)
+  // Time Stamp,ID,Extended,Bus,LEN,D1,D2,D3,D4,D5,D6,D7,D8
+  // 076733911,59B,false,1,8,00,31,7D,9B,00,31,7D,9B
+  debugLoop("called, MCP2515number = % d", MCP2515number);
+  bool firstRun = true;
+
+  if (firstRun) {
+    SD_Port.printf("Time Stamp,ID,Extended,Bus,LEN,D1,D2,D3,D4,D5,D6,D7,D8\n");
+    firstRun = false;
+  }
+  if ((rxId & 0x80000000) == 0x80000000)          // Determine if ID is standard (11 bits) or extended (29 bits)
+    Serial.printf("%.9lu,%.8lX,true,%1d,%1d", micros() - upTimer, (rxId & 0x1FFFFFFF), MCP2515number, len);
+  else
+    Serial.printf("%.9lu,%.3lX,false,%1d,%1d", micros() - upTimer, rxId, MCP2515number, len);
+
+  if ((rxId & 0x40000000) == 0x40000000) {    // Determine if message is a remote request frame.
+    Serial.printf(" REMOTE REQUEST FRAME");
+  }
+  else {
+    for (byte i = 0; i < len; i++) {
+      Serial.printf(",%.2X", rxBuf[i]);
+    }
+  }
+  Serial.printf("\n");
+}
 
 
+// Writes a CAN Frame to the SD Card Device (OpenLager) in SavvyCAN compatible format
+void OutputSDCardSavvyCAN(ulong rxId, uint8_t len, uint8_t rxBuf[], uint8_t MCP2515number) {
+  // Time Stamp,ID,Extended,Bus,LEN,D1,D2,D3,D4,D5,D6,D7,D8
+  // 076733911,59B,false,1,8,00,31,7D,9B,00,31,7D,9B
+  debugLoop("called, MCP2515number = % d", MCP2515number);
+  bool firstRun = true;
 
+  if (firstRun) {
+    SD_Port.printf("Time Stamp,ID,Extended,Bus,LEN,D1,D2,D3,D4,D5,D6,D7,D8\n");
+    firstRun = false;
+  }
 
+  if ((rxId & 0x80000000) == 0x80000000)          // Determine if ID is standard (11 bits) or extended (29 bits)
+    SD_Port.printf("%.9lu,%.8lX,true,%1d,%1d", micros() - upTimer, (rxId & 0x1FFFFFFF), MCP2515number, len);
+  else
+    SD_Port.printf("%.9lu,%.3lX,false,%1d,%1d", micros() - upTimer, rxId, MCP2515number, len);
+
+  if ((rxId & 0x40000000) == 0x40000000) {    // Determine if message is a remote request frame.
+    SD_Port.printf(" REMOTE REQUEST FRAME");
+  }
+  else {
+    for (byte i = 0; i < len; i++) {
+      SD_Port.printf(",%.2X", rxBuf[i]);
+    }
+    SD_Port.printf("\n");
+  }
+}
 

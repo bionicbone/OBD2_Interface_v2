@@ -261,6 +261,7 @@ Menu menuOutput[]{
 
 Menu menuRoot[]{
   // TODO  WARNING: H (header) option is not available in the horizontal menu
+  { "Main Menu", H },
   { "CAN Settings", M, CANSettings},
   { "Output Type", M, menuOutput},
   { },
@@ -348,7 +349,7 @@ void loop() {
 
   // Clear display and redraw the Title and Menu
   menu = menuRoot;                                                    // After the code function returns jump back to the root menu
-  DrawHorizontalMenu(TOP_MENU_Y_OFFSET, MENU_FONT);
+  DrawVerticalMenu(MENU_Y_OFFSET, MENU_BOLD_FONT, MENU_FONT);
 }
 
 
@@ -733,6 +734,7 @@ void ClearDisplay() {
 }
 
 
+//  *!* Depreciated Code *!*
 // Draw a menu along the top of the TFT Display (320 x 240) Rotation 3
 // Menu options are drawn in a line across the top of the screen
 // Contents based on the current menu defined by menu structures
@@ -796,7 +798,7 @@ void DrawVerticalMenu(int16_t yOffset, GFXfont headerFont, GFXfont menuFont) {
   uint8_t menuButtons = 0;
   uint8_t menuBtnStartPos = 99;
   while (menu[menuPosition].text) {
-    if (A == menu[menuPosition].action) {
+    if (A == menu[menuPosition].action || M == menu[menuPosition].action) {
       if (maxChars < String(menu[menuPosition].text).length()) maxChars = String(menu[menuPosition].text).length();
       if (menuBtnStartPos == 99) menuBtnStartPos = menuPosition;      // Capture the position of the first button in the menu structure
       menuButtons++;
@@ -826,7 +828,7 @@ void DrawVerticalMenu(int16_t yOffset, GFXfont headerFont, GFXfont menuFont) {
       TFT_Rectangle_ILI9341.drawString(menu[menuPosition].text, xButtonMiddle, (yOffset - TFT_Rectangle_ILI9341.fontHeight()) / 2);
       TFT_Rectangle_ILI9341.setFreeFont(&menuFont);
     }
-    else if (A == menu[menuPosition].action) {
+    else if (A == menu[menuPosition].action || M == menu[menuPosition].action) {
       // Draw the action button
       btnText[menuButtons] = menu[menuPosition].text;                 // Must capture btnText for the ProcessButtons() function
       btnMenu[menuButtons].initButton(&TFT_Rectangle_ILI9341,

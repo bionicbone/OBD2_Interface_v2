@@ -193,7 +193,6 @@ const auto    MENU_Y_OFFSET = 68;                                     // Used to
 bool          CANBusFirstRun = false;                                 // Will set to true when CAN Bus mode changes, trigger for cfps timer to start
 uint32_t      totalCANReceiveTimeTimer = 0;                           // Times how long we have been receiving CAN Frames
 uint16_t      numberOfCANFramesReceived[2] = { 0,0 };                 // Counts the number of CAN Frames received
-uint8_t       menuCurrentlyDisplayed = 0;                             // Tracks the menu displayed
 uint8_t       outputFormat = false;                                   // Tracks the required output type
 uint32_t      upTimer = micros();                                     // Tracks how long the program has been running, used in the outputs
 
@@ -341,7 +340,6 @@ void loop() {
   totalCANReceiveTimeTimer = 0;                                       // Times how long we have been receiving CAN Frames
   numberOfCANFramesReceived[0] = 0;                                   // Counts the number of CAN Frames received
   numberOfCANFramesReceived[1] = 0;                                   // Counts the number of CAN Frames received
-  menuCurrentlyDisplayed = 0;                                         // Tracks the menu displayed
   outputFormat = false;                                               // Tracks the required output type
 
   // Ensure the SD Card is OK to eject

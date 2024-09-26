@@ -1350,6 +1350,7 @@ void OutputAnalyseCANBusResults() {
 
 void OutputFormatCanDrive(ulong rxId, uint8_t len, uint8_t rxBuf[], uint8_t MCP2515number) {
   // canDrive Format - Validated as working Sep 2024
+  // ID,Remote Transmission Request(RTR),Extended(IDE),D0,D1,D2,D3,D4,D5,D6,D7
   // 151,0,0,025B8151025B8151
   // 152,0,0,025B8152025B8152
   // 153,0,0,025B8153025B8153
@@ -1380,7 +1381,7 @@ void OutputFormatCanDrive(ulong rxId, uint8_t len, uint8_t rxBuf[], uint8_t MCP2
 
 
 void outputFormatSavvyCAN(ulong rxId, uint8_t len, uint8_t rxBuf[], uint8_t MCP2515number) {
-  // SavvyCan Format (.GVRET file format)
+  // SavvyCan Format (.GVRET file format) - Validated as working Sep 2024
   // Time Stamp,ID,Extended,Bus,LEN,D1,D2,D3,D4,D5,D6,D7,D8
   // 076733911,59B,false,1,8,00,31,7D,9B,00,31,7D,9B
   debugLoop("called, MCP2515number = % d", MCP2515number);

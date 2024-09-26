@@ -194,7 +194,6 @@ bool          CANBusFirstRun = false;                                 // Will se
 uint32_t      totalCANReceiveTimeTimer = 0;                           // Times how long we have been receiving CAN Frames
 uint16_t      numberOfCANFramesReceived[2] = { 0,0 };                 // Counts the number of CAN Frames received
 uint8_t       menuCurrentlyDisplayed = 0;                             // Tracks the menu displayed
-const char*   btnText[] = { "","","","","" };                         // Text displayed in each valid button, used for the inversing
 uint8_t       outputFormat = false;                                   // Tracks the required output type
 uint32_t      upTimer = micros();                                     // Tracks how long the program has been running, used in the outputs
 
@@ -285,10 +284,6 @@ struct can_frame frame;
 // Add SD Card Serial Port
 HardwareSerial SD_Port(SD_PORT_HARDWARE_SERIAL_NUMBER);               // Connect OpenLager to Hardware Serial Port specified
 
-// Invoke the TFT_eSPI button class and create all the button objects
-TFT_eSPI_Button btnMenu[5];
-
-
 
 // Setup Serial, SD_CARD, CAN Bus, and Display
 // Also check the Arduino CORE used to compile the code has been validated
@@ -347,11 +342,6 @@ void loop() {
   numberOfCANFramesReceived[0] = 0;                                   // Counts the number of CAN Frames received
   numberOfCANFramesReceived[1] = 0;                                   // Counts the number of CAN Frames received
   menuCurrentlyDisplayed = 0;                                         // Tracks the menu displayed
-  btnText[0] = "";                                                    // Text displayed in each valid button, used for the inversing
-  btnText[1] = "";                                                    // Text displayed in each valid button, used for the inversing
-  btnText[2] = "";                                                    // Text displayed in each valid button, used for the inversing
-  btnText[3] = "";                                                    // Text displayed in each valid button, used for the inversing
-  btnText[4] = "";                                                    // Text displayed in each valid button, used for the inversing
   outputFormat = false;                                               // Tracks the required output type
 
   // Ensure the SD Card is OK to eject
@@ -428,22 +418,23 @@ void StartReadingCanBus() {
   }
 
   // Create a STOP button to exit
-  TFT_Rectangle_ILI9341.setFreeFont(&MENU_FONT);                    // Set the normal button font
+  TFT_Rectangle_ILI9341.setFreeFont(&MENU_FONT);                      // Set the normal button font
+  TFT_eSPI_Button btnMenu[1];                                         // Maximum 1 button on this display
+  const char* btnText[] = { "STOP" };                                 // Maximum 1 button on this display
   char handler[1] = "";
   uint16_t xButtonWidth = TFT_Rectangle_ILI9341.textWidth("A") * 5;
   uint16_t yButtonHeight = TFT_Rectangle_ILI9341.fontHeight() * 1.2;
   uint16_t xButtonMiddle = TFT_Rectangle_ILI9341.width() - (xButtonWidth / 2);
   uint16_t yButtonMiddle = TFT_Rectangle_ILI9341.height() - (yButtonHeight / 2);
-  const char* messageBtnText[1] = { "STOP" };
-  btnText[0] = messageBtnText[0];                                   // Must capture btnText for the ProcessButtons() function
+                     
   btnMenu[0].initButton(&TFT_Rectangle_ILI9341,
     xButtonMiddle,
     yButtonMiddle,
     xButtonWidth,
     yButtonHeight,
-    TFT_YELLOW, TFT_BLUE, TFT_YELLOW, handler, 1);                  // initButton limits the amount of text drawn, draw text in the drawButton() function
-  btnMenu[0].drawButton(false, messageBtnText[0]);                  // Specifiy the text for the button because initButton will not display the full text length
-  btnMenu[0].press(false);                                          // Because I am reusing buttons it is important to tell the button it is NOT pressed
+    TFT_YELLOW, TFT_BLUE, TFT_YELLOW, handler, 1);                    // initButton limits the amount of text drawn, draw text in the drawButton() function
+  btnMenu[0].drawButton(false, btnText[0]);                           // Specifiy the text for the button because initButton will not display the full text length
+  btnMenu[0].press(false);                                            // Because I am reusing buttons it is important to tell the button it is NOT pressed
 
 
   bool stopBtnError = true;
@@ -482,7 +473,7 @@ void StartReadingCanBus() {
       }
       stopBtnError = true;
 
-      uint8_t result = ProcessButtons(DISPLAY_BUTTON, 1, BTN_STOP, false);
+      uint8_t result = ProcessButtons(btnMenu, btnText, DISPLAY_BUTTON, 1, BTN_STOP, false);
       stopBtnTimer = millis();                                        // Reset the STOP button timer
 
       debugLoop("MessageBox result = %d (zero-based indexing)", result);
@@ -826,6 +817,8 @@ void DrawHorizontalMenu(int16_t yOffset, GFXfont menuFont) {
 
   // Draw the menu buttons
   TFT_Rectangle_ILI9341.setFreeFont(&menuFont);
+  TFT_eSPI_Button btnMenu[5];                                         // Maximum 5 buttons on a horizontal menu
+  const char* btnText[] = { "", "", "", "", "" };                     // Maximum 5 buttons on a horizontal menu
   char handler[1] = "";
   uint8_t menuBtnStartPos = 0;
   menuButtons = 0;                                                    // Reset the number of buttons that will be active on the new menu
@@ -841,7 +834,7 @@ void DrawHorizontalMenu(int16_t yOffset, GFXfont menuFont) {
     btnMenu[menuButtons].press(false);                                // Because I am reusing buttons it is important to tell the button it is NOT pressed
     menuButtons++;                                                    // Add the button to the Global Variable that tracks the number of active buttons 
   }
-  ProcessButtons(MENU, menuButtons, menuBtnStartPos, true);
+  ProcessButtons(btnMenu, btnText, MENU, menuButtons, menuBtnStartPos, true);
 }
 
 
@@ -880,6 +873,8 @@ void DrawVerticalMenu(int16_t yOffset, GFXfont headerFont, GFXfont menuFont) {
 
   // Draw the menu buttons
   TFT_Rectangle_ILI9341.setFreeFont(&menuFont);
+  TFT_eSPI_Button btnMenu[5];                                         // Maximum 5 buttons on a verticle menu
+  const char* btnText[] = { "", "", "", "", ""};                      // Maximum 5 buttons on a verticle menu
   char handler[1] = "";
   menuPosition = 0;
   menuButtons = 0;
@@ -907,7 +902,7 @@ void DrawVerticalMenu(int16_t yOffset, GFXfont headerFont, GFXfont menuFont) {
     }
     menuPosition++;
   }
-  ProcessButtons(MENU, menuButtons, menuBtnStartPos, true);
+  ProcessButtons(btnMenu, btnText, MENU, menuButtons, menuBtnStartPos, true);
 }
 
 
@@ -915,9 +910,9 @@ void DrawVerticalMenu(int16_t yOffset, GFXfont headerFont, GFXfont menuFont) {
 // Once called it will wait for a button to be pressed
 // type: 0 = Menu, 1 = MessageBox
 // NOTE: Overload automatically sets wait (for button press) = true
-uint8_t ProcessButtons(uint8_t type, uint8_t numberOfButtons) {          // overload
+uint8_t ProcessButtons(TFT_eSPI_Button btnMenu[], const char* btnText[], uint8_t type, uint8_t numberOfButtons) {          // overload
   debugLoop("Called (without menuBtnStartPos overload)\n");
-  uint8_t result = ProcessButtons(type, numberOfButtons, 0, true);
+  uint8_t result = ProcessButtons(btnMenu, btnText, type, numberOfButtons, 0, true);
   return result;
 }
 
@@ -926,7 +921,7 @@ uint8_t ProcessButtons(uint8_t type, uint8_t numberOfButtons) {          // over
 // type: 0 = Menu, 1 = MessageBox
 // wait (for button press): true or false
 // Returns: number of button pressed or 99 if no button pressed
-uint8_t ProcessButtons(uint8_t type, uint8_t numberOfButtons, uint8_t menuBtnStartPos, bool wait) {
+uint8_t ProcessButtons(TFT_eSPI_Button btnMenu[], const char* btnText[], uint8_t type, uint8_t numberOfButtons, uint8_t menuBtnStartPos, bool wait) {
   debugLoop("Called (with menuBtnStartPos overload)");
   debugLoop("wait = %d\n", wait);
   
@@ -953,12 +948,12 @@ uint8_t ProcessButtons(uint8_t type, uint8_t numberOfButtons, uint8_t menuBtnSta
       TFT_Rectangle_ILI9341.setFreeFont(&MENU_FONT);
 
       if (btnMenu[btnCounter].justPressed()) {
-        btnMenu[btnCounter].drawButton(true, btnText[btnCounter]);    // draw inverted
+        btnMenu[btnCounter].drawButton(true, String(btnText[btnCounter]));    // draw inverted
         delay(100);                                                   // UI debouncing
       }
 
       if (btnMenu[btnCounter].justReleased()) {
-        btnMenu[btnCounter].drawButton(false, btnText[btnCounter]);   // draw normal
+        btnMenu[btnCounter].drawButton(false, String(btnText[btnCounter]));   // draw normal
 
         if (type == MENU) {
           ProcessMenu(btnCounter, menuBtnStartPos);                   // Jump to new menu
@@ -1067,6 +1062,8 @@ uint8_t MessageBox(const char* title, const char* message, uint8_t options) {
 
   // Draw the buttons
   uint8_t menuButtons = 0;
+  TFT_eSPI_Button btnMenu[3];                                         // Maximum 3 buttons on a message box
+  const char* btnText[] = { "", "", "" };                             // Maximum 3 buttons on a message box
   char handler[1] = "";
   uint16_t xButtonWidth = (boxWidth / 3) * 0.95;
   uint16_t yButtonHeight = TFT_Rectangle_ILI9341.fontHeight() * 1.2;
@@ -1097,7 +1094,7 @@ uint8_t MessageBox(const char* title, const char* message, uint8_t options) {
     menuButtons++;
   }
 
-  result = ProcessButtons(MESSAGE_BOX, menuButtons);
+  result = ProcessButtons(btnMenu, btnText, MESSAGE_BOX, menuButtons);
 
   debugLoop("MessageBox result = %d (zero-based indexing)", result);
 
@@ -1326,18 +1323,19 @@ void OutputAnalyseCANBusResults() {
     uint16_t yButtonHeight = TFT_Rectangle_ILI9341.fontHeight() * 1.2;
     uint16_t xButtonMiddle = TFT_Rectangle_ILI9341.width() - (xButtonWidth / 2);
     uint16_t yButtonMiddle = TFT_Rectangle_ILI9341.height() - (yButtonHeight / 2);
-    const char* messageBtnText[1] = { "OK" };
-    btnText[0] = messageBtnText[0];                                   // Must capture btnText for the ProcessButtons() function
+    // TODO - remove messageBtnText
+    TFT_eSPI_Button btnMenu[1];                                         // Maximum 1 button on this display
+    const char* btnText[1] = { "OK" };
     btnMenu[0].initButton(&TFT_Rectangle_ILI9341,
       xButtonMiddle,
       yButtonMiddle,
       xButtonWidth,
       yButtonHeight,
       TFT_YELLOW, TFT_BLUE, TFT_YELLOW, handler, 1);                  // initButton limits the amount of text drawn, draw text in the drawButton() function
-    btnMenu[0].drawButton(false, messageBtnText[0]);                  // Specifiy the text for the button because initButton will not display the full text length
+    btnMenu[0].drawButton(false, btnText[0]);                         // Specifiy the text for the button because initButton will not display the full text length
     btnMenu[0].press(false);                                          // Because I am reusing buttons it is important to tell the button it is NOT pressed
 
-    result = ProcessButtons(MESSAGE_BOX, 1);
+    result = ProcessButtons(btnMenu, btnText, MESSAGE_BOX, 1);
     return;                                                           // Back to root menu
   }
   else if (result == BTN_CANCEL) {

@@ -84,6 +84,10 @@ const String LIBRARY_NAME = "arduino_mpc2515 (by autowp)";
 #include <FSImpl.h>                                                   // TFT_eSPI requires this arduino-ESP32 core library
 TFT_eSPI TFT_Rectangle_ILI9341 = TFT_eSPI();
 
+// include my Keyboard library
+#include "TFT_eSPI_Keyboard.h"
+TFT_eSPI_Keyboard Keyboard(TFT_Rectangle_ILI9341);  // Pass the TFT_eSPI instance to the keyboard library
+
 // include the arduino-ESP32 core SPI library which is used for the MCP2515 controllers and the ILI9341 Display
 #include <SPI.h>
 // include the arduino-ESP32 core HardwareSerial library which is used for the SD Card Writer
@@ -309,8 +313,8 @@ void setup() {
   SDCardStart(SD_CARD_ESP32_S3_TX_PIN);
 
   // Start the two CAN Bus, 500kbps for High Speed and 125kbps for the Medium Speed and both in ListenOnly Mode
-  CANBusStart(mcp2515_1, CAN_500KBPS, 1); 
-  CANBusStart(mcp2515_2, CAN_125KBPS, 1);
+  //CANBusStart(mcp2515_1, CAN_500KBPS, 1); 
+  //CANBusStart(mcp2515_2, CAN_125KBPS, 1);
 
   // TFT_eSPI runs on HSPI bus, see Setup42_ILI9341_ESP32.h for pin definitions and more information
   TFT_Rectangle_ILI9341.init();
@@ -334,6 +338,10 @@ void setup() {
 // At the end of each function we return here to reset and show the main root menu
 void loop() {
   debugLoop("Called");
+
+  String returned = Keyboard.displayKeyboard();
+  Serial.print("Keyboard() Returned: "); Serial.println(returned);
+  while (true);
 
   // Reset required Global Control Variables
   // TODO - Review each Global Variable to see if it really needs to be Global

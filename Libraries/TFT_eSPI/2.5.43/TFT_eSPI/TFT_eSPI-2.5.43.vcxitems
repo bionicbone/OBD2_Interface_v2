@@ -1,6 +1,6 @@
-<?xml version="1.0" encoding ="utf-8" ?>
-<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003" >
-  <PropertyGroup Label="Globals" >
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup Label="Globals">
     <MSBuildAllProjects>$(MSBuildAllProjects);$(MSBuildThisFileFullPath)</MSBuildAllProjects>
     <HasSharedItems>true</HasSharedItems>
     <ItemsProjectGuid>{ffc92cd3-ba2d-4bf8-8498-e9813601ee5b}</ItemsProjectGuid>
@@ -18,22 +18,20 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="$(MSBuildThisFileDirectory)TFT_config.h" />
-<ClInclude Include="$(MSBuildThisFileDirectory)TFT_eSPI.h" />
-<ClInclude Include="$(MSBuildThisFileDirectory)User_Setup (1).h" />
-<ClInclude Include="$(MSBuildThisFileDirectory)User_Setup.h" />
-<ClInclude Include="$(MSBuildThisFileDirectory)User_Setup_Select (1).h" />
-<ClInclude Include="$(MSBuildThisFileDirectory)User_Setup_Select.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)TFT_eSPI.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)User_Setup.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)User_Setup_Select.h" />
   </ItemGroup>
   <ItemGroup>
     <Text Include="$(MSBuildThisFileDirectory)CMakeLists.txt" />
-<Text Include="$(MSBuildThisFileDirectory)keywords.txt" />
-<Text Include="$(MSBuildThisFileDirectory)library.properties" />
-<Text Include="$(MSBuildThisFileDirectory)license.txt" />
-<Text Include="$(MSBuildThisFileDirectory)README.txt" />
+    <Text Include="$(MSBuildThisFileDirectory)keywords.txt" />
+    <Text Include="$(MSBuildThisFileDirectory)library.properties" />
+    <Text Include="$(MSBuildThisFileDirectory)license.txt" />
+    <Text Include="$(MSBuildThisFileDirectory)README.txt" />
   </ItemGroup>
   <ItemGroup>
     <None Include="$(MSBuildThisFileDirectory)Kconfig" />
-<None Include="$(MSBuildThisFileDirectory)library.json" />
-<None Include="$(MSBuildThisFileDirectory)README.md" />
+    <None Include="$(MSBuildThisFileDirectory)library.json" />
+    <None Include="$(MSBuildThisFileDirectory)README.md" />
   </ItemGroup>
 </Project>

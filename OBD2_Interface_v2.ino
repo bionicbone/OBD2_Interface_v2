@@ -193,7 +193,17 @@ const auto    MENU_BOLD_FONT = FreeSansBoldOblique9pt7b;              // Font us
 const auto    MENU_FONT = FreeSansOblique9pt7b;                       // Font used for selection menus buttons
 const auto    MENU_Y_OFFSET = 68;                                     // Used to position the menu just under the Menu Header
 
+// Structures
+struct CANBusConfiguration {
+  uint16_t Interface1_Speed = 1000;
+  uint16_t Interface2_Speed = 1000;
+};
+
+CANBusConfiguration CANBusConf;
+                                                                      
 // Control variables
+bool          headerFirstRun = false;                                 // Will set to true when an serial output initialises, trigger for header
+bool          sdCardFirstRun = false;                                 // Will set to true when SD Card initialises, trigger for SavvyCAN header
 bool          CANBusFirstRun = false;                                 // Will set to true when CAN Bus mode changes, trigger for cfps timer to start
 uint32_t      totalCANReceiveTimeTimer = 0;                           // Times how long we have been receiving CAN Frames
 uint16_t      numberOfCANFramesReceived[2] = { 0,0 };                 // Counts the number of CAN Frames received
@@ -260,17 +270,17 @@ Menu CANSettings[]{
 
 Menu menuOutput[]{
   { "Select Required Output", H },
-  { "Analyse CAN Bus Capacity", A, 0, actionOutputChange, OUTPUT_ANALYSE_CAN_BUS_RESULTS },
   { "Serial CanDrive", A, 0, actionOutputChange, OUTPUT_FORMAT_CANDRIVE },
   { "Serial SavvyCAN", A, 0, actionOutputChange, OUTPUT_FORMAT_SAVVYCAN },
   { "Save SavvyCAN", A, 0, actionOutputChange, OUTPUT_SD_CARD_SAVVYCAN },
-  { "WiFi Data", A, 0, actionOutputChange, OUTPUT_WIFI },
+  { "Wireless Data", A, 0, actionOutputChange, OUTPUT_WIFI },
   { },
 }; 
 
 Menu menuRoot[]{
   // TODO  WARNING: H (header) option is not available in the horizontal menu
   { "Main Menu", H },
+  { "Analyse CAN Bus Capacity", A, 0, actionOutputChange, OUTPUT_ANALYSE_CAN_BUS_RESULTS },
   { "CAN Settings", M, CANSettings},
   { "Output Type", M, menuOutput},
   { },
@@ -313,8 +323,8 @@ void setup() {
   SDCardStart(SD_CARD_ESP32_S3_TX_PIN);
 
   // Start the two CAN Bus, 500kbps for High Speed and 125kbps for the Medium Speed and both in ListenOnly Mode
-  //CANBusStart(mcp2515_1, CAN_500KBPS, 1); 
-  //CANBusStart(mcp2515_2, CAN_125KBPS, 1);
+  CANBusStart(mcp2515_1, CAN_500KBPS, 1); 
+  CANBusStart(mcp2515_2, CAN_125KBPS, 1);
 
   // TFT_eSPI runs on HSPI bus, see Setup42_ILI9341_ESP32.h for pin definitions and more information
   TFT_Rectangle_ILI9341.init();
@@ -339,9 +349,12 @@ void setup() {
 void loop() {
   debugLoop("Called");
 
-  String returned = Keyboard.displayKeyboard();
-  Serial.print("Keyboard() Returned: "); Serial.println(returned);
-  while (true);
+  //String returned = Keyboard.displayKeyboard();
+  //Serial.print("Keyboard() Returned: "); Serial.println(returned);
+  //while (true);
+
+  //CANBusSettings(MENU_Y_OFFSET, MENU_BOLD_FONT);
+  //while (true);
 
   // Reset required Global Control Variables
   // TODO - Review each Global Variable to see if it really needs to be Global
@@ -576,6 +589,36 @@ void CANBusResetControlVariables() {
   numberOfCANFramesReceived[0] = 0;
   numberOfCANFramesReceived[1] = 0;
 }
+
+
+void CANBusSettings(int16_t yOffset, GFXfont headerFont) {
+  uint16_t xWidth = 0;
+  
+  // Clear the display and reset the program header
+  ClearDisplay();
+
+  TFT_Rectangle_ILI9341.setTextColor(TFT_GREEN);
+  TFT_Rectangle_ILI9341.setTextDatum(TL_DATUM);
+
+  // Quick test to enter a CAN Speed
+  // Draw the menu header
+  TFT_Rectangle_ILI9341.setFreeFont(&headerFont);
+  xWidth = TFT_Rectangle_ILI9341.textWidth("CAN BUS Settings");
+  TFT_Rectangle_ILI9341.drawString("CAN BUS Settings", (TFT_Rectangle_ILI9341.width() - xWidth) / 2, (yOffset - TFT_Rectangle_ILI9341.fontHeight()) / 2);
+
+  // Draw available settings
+  TFT_Rectangle_ILI9341.setTextFont(2);
+  TFT_Rectangle_ILI9341.drawString("Module 1", 45, yOffset + 10);
+  xWidth = TFT_Rectangle_ILI9341.drawString("Speed (kbps): ", 5, yOffset + 30);
+  TFT_Rectangle_ILI9341.drawString(String(CANBusConf.Interface1_Speed), xWidth + 5, yOffset + 30);
+
+  TFT_Rectangle_ILI9341.drawString("Module 2", 205, yOffset + 10);
+  xWidth = TFT_Rectangle_ILI9341.drawString("Speed (kbps): ", 165, yOffset + 30);
+  TFT_Rectangle_ILI9341.drawString(String(CANBusConf.Interface2_Speed), xWidth + 165, yOffset + 30);
+
+}
+
+
 
 // Starts one of the two MCP2515 CAN controllers
 // For Land Rover Freelander 2 set:
@@ -1389,11 +1432,10 @@ void outputFormatSavvyCAN(ulong rxId, uint8_t len, uint8_t rxBuf[], uint8_t MCP2
   // Time Stamp,ID,Extended,Bus,LEN,D1,D2,D3,D4,D5,D6,D7,D8
   // 076733911,59B,false,1,8,00,31,7D,9B,00,31,7D,9B
   debugLoop("called, MCP2515number = % d", MCP2515number);
-  bool firstRun = true;
 
-  if (firstRun) {
-    SD_Port.printf("Time Stamp,ID,Extended,Bus,LEN,D1,D2,D3,D4,D5,D6,D7,D8\n");
-    firstRun = false;
+  if (!headerFirstRun) {
+    Serial.printf("Time Stamp,ID,Extended,Bus,LEN,D1,D2,D3,D4,D5,D6,D7,D8\n");
+    headerFirstRun = true;
   }
   if ((rxId & 0x80000000) == 0x80000000)          // Determine if ID is standard (11 bits) or extended (29 bits)
     Serial.printf("%.9lu,%.8lX,true,%1d,%1d", micros() - upTimer, (rxId & 0x1FFFFFFF), MCP2515number, len);
@@ -1417,11 +1459,10 @@ void OutputSDCardSavvyCAN(ulong rxId, uint8_t len, uint8_t rxBuf[], uint8_t MCP2
   // Time Stamp,ID,Extended,Bus,LEN,D1,D2,D3,D4,D5,D6,D7,D8
   // 076733911,59B,false,1,8,00,31,7D,9B,00,31,7D,9B
   debugLoop("called, MCP2515number = % d", MCP2515number);
-  bool firstRun = true;
 
-  if (firstRun) {
+  if (!sdCardFirstRun) {
     SD_Port.printf("Time Stamp,ID,Extended,Bus,LEN,D1,D2,D3,D4,D5,D6,D7,D8\n");
-    firstRun = false;
+    sdCardFirstRun = true;
   }
 
   if ((rxId & 0x80000000) == 0x80000000)          // Determine if ID is standard (11 bits) or extended (29 bits)

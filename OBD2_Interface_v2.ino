@@ -140,7 +140,7 @@ TFT_eSPI_Keyboard Keyboard(TFT_Rectangle_ILI9341);  // Pass the TFT_eSPI instanc
 // Debugging Options (ESP32 Version)
 // DEBUG 0 = Debugging Serial Messages are switched off
 // DEBUG 1 = Debugging Serial Messages are switched on
-#define DEBUG 1
+#define DEBUG 0
 
 #if DEBUG > 0
 #define debugLoop(fmt, ...) Serial.printf("%s: " fmt "\r\n", __func__, ##__VA_ARGS__) // Serial Debugging On
@@ -172,7 +172,9 @@ enum          OUTPUT_TYPES {
               OUTPUT_FORMAT_CANDRIVE, 
               OUTPUT_FORMAT_SAVVYCAN, 
               OUTPUT_SD_CARD_SAVVYCAN, 
-              OUTPUT_WIFI };
+              OUTPUT_WIFI,
+              DISPLAY_POINT_IN_TIME,
+              DISPLAY_BATTERY_VOLTAGE};
 
 
 // Constants & ESP32-S3 pin declarations
@@ -232,6 +234,14 @@ void actionOutputChange(uint16_t arg) {
     StartReadingCanBus();
     break;
 
+  case DISPLAY_POINT_IN_TIME:
+    StartReadingCanBus();
+    break;
+
+  case DISPLAY_BATTERY_VOLTAGE:
+    StartReadingCanBus();
+    break;
+
   default:
     break;
   }
@@ -265,7 +275,14 @@ struct Menu {
 Menu CANSettings[]{
   { "CAN Bus Settings", H },
   { "CAN Bus 0 Speed", A, 0, changeCANSettings, 0 },
-  { },
+  { },                                                                // Menu Terminator
+};
+
+Menu menuDisplay[]{
+  { "Select Required Output", H },
+  { "Point in Time", A, 0, actionOutputChange, DISPLAY_POINT_IN_TIME },
+  { "Battery Voltage", A, 0, actionOutputChange, DISPLAY_BATTERY_VOLTAGE },
+  { },                                                                // Menu Terminator
 };
 
 Menu menuOutput[]{
@@ -274,7 +291,8 @@ Menu menuOutput[]{
   { "Serial SavvyCAN", A, 0, actionOutputChange, OUTPUT_FORMAT_SAVVYCAN },
   { "Save SavvyCAN", A, 0, actionOutputChange, OUTPUT_SD_CARD_SAVVYCAN },
   { "Wireless Data", A, 0, actionOutputChange, OUTPUT_WIFI },
-  { },
+  { "Display Info", M, menuDisplay},
+  { },                                                                // Menu Terminator
 }; 
 
 Menu menuRoot[]{
@@ -283,7 +301,7 @@ Menu menuRoot[]{
   { "Analyse CAN Bus Capacity", A, 0, actionOutputChange, OUTPUT_ANALYSE_CAN_BUS_RESULTS },
   { "CAN Settings", M, CANSettings},
   { "Output Type", M, menuOutput},
-  { },
+  { },                                                                // Menu Terminator
 };
 
 // Set and track the corrent menu being displayed
@@ -323,8 +341,8 @@ void setup() {
   SDCardStart(SD_CARD_ESP32_S3_TX_PIN);
 
   // Start the two CAN Bus, 500kbps for High Speed and 125kbps for the Medium Speed and both in ListenOnly Mode
-  CANBusStart(mcp2515_1, CAN_500KBPS, 1); 
-  CANBusStart(mcp2515_2, CAN_125KBPS, 1);
+  CANBusStart(mcp2515_1, CAN_500KBPS, 0); 
+  CANBusStart(mcp2515_2, CAN_125KBPS, 0);
 
   // TFT_eSPI runs on HSPI bus, see Setup42_ILI9341_ESP32.h for pin definitions and more information
   TFT_Rectangle_ILI9341.init();
@@ -429,7 +447,27 @@ void StartReadingCanBus() {
     TFT_Rectangle_ILI9341.drawCentreString("Ensure the SD Card must be formatted using", 160, 65, 2);
     TFT_Rectangle_ILI9341.drawCentreString("FAT32 and be a good quality 32gb or less.", 160, 85, 2);
     TFT_Rectangle_ILI9341.drawCentreString("Press STOP to end the output.", 160, 105, 2);
+    TFT_Rectangle_ILI9341.drawString("MS Date / Time:", 70, 145);
+    TFT_Rectangle_ILI9341.drawString("    MS Car Age:", 70, 165);
+    TFT_Rectangle_ILI9341.drawString("    MS 0x490D3:", 70, 185);
+    TFT_Rectangle_ILI9341.drawString("    HS Car Age:", 70, 205);
+    TFT_Rectangle_ILI9341.drawString("    HS 0x3D3D1:", 70, 225);
     TFT_Rectangle_ILI9341.setTextColor(TFT_BLACK);
+    break;
+
+  case DISPLAY_POINT_IN_TIME:
+    TFT_Rectangle_ILI9341.setTextColor(TFT_GREEN);
+    TFT_Rectangle_ILI9341.drawCentreString("Display Reference Point in CAN Bus Time", 160, 20, 2);
+    TFT_Rectangle_ILI9341.drawString("MS Date / Time:", 70, 45);
+    TFT_Rectangle_ILI9341.drawString("    MS Car Age:", 70, 65);
+    TFT_Rectangle_ILI9341.drawString("    MS 0x490D3:", 70, 85);
+    TFT_Rectangle_ILI9341.drawString("    HS Car Age:", 70, 105);
+    TFT_Rectangle_ILI9341.drawString("    HS 0x3D3D1:", 70, 125);
+    interfaceNumber = CANBOTH;
+    break;
+
+  case DISPLAY_BATTERY_VOLTAGE:
+    interfaceNumber = CAN1;
     break;
 
   default:
@@ -531,6 +569,14 @@ void CANFrameProcessing(uint8_t whichCANBus) {
     OutputSDCardSavvyCAN(frame.can_id, frame.can_dlc, frame.data, whichCANBus);
     break;
 
+  case DISPLAY_POINT_IN_TIME:
+    DisplayPointInTime(frame.can_id, frame.can_dlc, frame.data, whichCANBus, 35);
+    break;
+
+  case DISPLAY_BATTERY_VOLTAGE:
+    DisplayBatteryVoltage(frame.can_id, frame.can_dlc, frame.data, whichCANBus);
+    break;
+
   default:
     break;
   }
@@ -548,13 +594,21 @@ void CANFrameProcessing(uint8_t whichCANBus) {
 void SDCardStart(uint8_t TxPin) {
   debugLoop("Called");
 
+  // Add a time out
+  unsigned long timer = millis();
+
   // Due to the writing speed necessary I am using an STM32F411 based "OpenLager" (not to be confused with the slower "OpenLogger") 
-  while (!SD_Port) {
+  while (!SD_Port && (millis() - timer < 2500)) {
     SD_Port.begin(2000000, SERIAL_8N1, -1, TxPin);                    // Rx pin in not required, we will not use any OpenLager read options
     delay(500);
   }
   delay(1000);                                                        // For start up stability (corruption was noticed if we try to write immediately)
-  debugLoop("SD Card writer initialised\n");
+  if (SD_Port) { 
+    debugLoop("SD Card writer initialised\n"); 
+  }
+  else {
+    debugLoop("SD Card writer is not available\n");
+  }
 }
 
 
@@ -626,6 +680,8 @@ void CANBusSettings(int16_t yOffset, GFXfont headerFont) {
 // mcp2515_2 to 125kbps (Medium Speed) in Mode 1 (ListenOnly)
 // CANMode = 0 for Normal and 1 for ListenOnly
 void CANBusStart(MCP2515 CANBusModule, CAN_SPEED CANSpeed, uint8_t CANMode) {
+  debugLoop("Called");
+  
   while (CANBusModule.reset() != MCP2515::ERROR_OK) { delay(500); }
   debugLoop("MCP2515 Reset Successful");
 
@@ -659,7 +715,7 @@ bool CANBusCheckRecieved(MCP2515 CANBusModule) {
   return CANBusModule.checkReceive();
 }
 
-// Checks the MCP2515 CAN controller RX Buffer for available data
+// Reads the MCP2515 CAN controller RX Buffer for available data
 bool CANBusReadCANData(MCP2515 CANBusModule) {
 
   if (CANBusModule.readMessage(&frame) == MCP2515::ERROR_OK) {
@@ -668,6 +724,12 @@ bool CANBusReadCANData(MCP2515 CANBusModule) {
   else {
     return false;
   }
+}
+
+// Send CAN Data
+bool CANBusSendCANData(MCP2515 CANBusModule) {
+  CANBusModule.sendMessage(&frame);
+  return true;
 }
 
 
@@ -1479,5 +1541,107 @@ void OutputSDCardSavvyCAN(ulong rxId, uint8_t len, uint8_t rxBuf[], uint8_t MCP2
     }
     SD_Port.printf("\n");
   }
+
+  DisplayPointInTime(frame.can_id, frame.can_dlc, frame.data, MCP2515number, 140);
 }
 
+
+void DisplayPointInTime(ulong rxId, uint8_t len, uint8_t rxBuf[], uint8_t MCP2515number, uint8_t yOffset) {
+  debugLoop("called, MCP2515number = % d", MCP2515number);
+
+  // control variables for date and time
+  static uint8_t  seconds = 0;
+  static uint8_t  MSSeconds = 0;
+  static uint8_t  MS0x490D3 = 0;
+  static uint8_t  HSSeconds = 0;
+  static uint8_t  HS0x3D3D1 = 0;
+
+  // detect MS date & time signal has changed
+  if (MCP2515number == 2 && rxId == 0x04D2 && seconds != rxBuf[7]) {
+    debugLoop("Date & Time\n");
+    seconds = rxBuf[7];         // Store new seconds
+    char dateTime[19];
+    sprintf(dateTime, "%02d/%02d/%02d  %02d:%02d:%02d", rxBuf[4], rxBuf[3], rxBuf[2], rxBuf[5], rxBuf[6], rxBuf[7]);
+    //String dateTime = String(rxBuf[4]) + "/" + String(rxBuf[3]) + "/" + String(rxBuf[2]) + "  " + String(rxBuf[5]) + ":" + String(rxBuf[6]) + ":" + String(rxBuf[7]);
+    TFT_Rectangle_ILI9341.fillRect(145, yOffset, 155, 20, TFT_LANDROVERGREEN);
+    TFT_Rectangle_ILI9341.setTextColor(TFT_GREEN);
+    TFT_Rectangle_ILI9341.drawString(dateTime, 220, yOffset + 10);
+  }
+
+
+  // detect MS car age signal has changed
+  else if (MCP2515number == 2 && rxId == 0x0405 && rxBuf[0] == 0x01 && MSSeconds != rxBuf[5]) {
+    debugLoop("MS Car Age\n");
+    MSSeconds = rxBuf[5];         // Store new seconds
+    uint32_t canValue = ((rxBuf[2] << 24) | (rxBuf[3] << 16) | (rxBuf[4] << 8) | rxBuf[5]) * 0.1;
+    TFT_Rectangle_ILI9341.fillRect(145, yOffset + 20, 105, 20, TFT_LANDROVERGREEN);
+    TFT_Rectangle_ILI9341.setTextColor(TFT_GREEN);
+    TFT_Rectangle_ILI9341.drawString(String(canValue), 195, yOffset + 30);
+  }
+
+  // detect MS 0x490 D3 signal has changed
+  else if (MCP2515number == 2 && rxId == 0x0490 && MS0x490D3 != rxBuf[3]) {
+    debugLoop("MS 0x490 D3\n");
+    MS0x490D3 = rxBuf[3];         // Store new value
+    TFT_Rectangle_ILI9341.fillRect(145, yOffset + 40, 40, 20, TFT_LANDROVERGREEN);
+    TFT_Rectangle_ILI9341.setTextColor(TFT_GREEN);
+    TFT_Rectangle_ILI9341.drawString(String(MS0x490D3), 160, yOffset + 50);
+  }
+
+
+  // detect HS car age signal has changed
+  else if (MCP2515number == 1 && rxId == 0x0405 && rxBuf[0] == 0x01 && HSSeconds != rxBuf[5]) {
+    debugLoop("HS Car Age\n");
+    HSSeconds = rxBuf[5];         // Store new seconds
+    uint32_t canValue = ((rxBuf[2] << 24) | (rxBuf[3] << 16) | (rxBuf[4] << 8) | rxBuf[5]) * 0.1;
+    TFT_Rectangle_ILI9341.fillRect(145, yOffset + 60, 105, 20, TFT_LANDROVERGREEN);
+    TFT_Rectangle_ILI9341.setTextColor(TFT_GREEN);
+    TFT_Rectangle_ILI9341.drawString(String(canValue), 195, yOffset + 70);
+  }
+
+  // detect HS 0x369 D1 signal has changed
+  else if (MCP2515number == 1 && rxId == 0x03D3 && HS0x3D3D1 != rxBuf[1]) {
+    debugLoop("HS 0x315 D4\n");
+    HS0x3D3D1 = rxBuf[1];         // Store new value
+    TFT_Rectangle_ILI9341.fillRect(145, yOffset + 80, 40, 20, TFT_LANDROVERGREEN);
+    TFT_Rectangle_ILI9341.setTextColor(TFT_GREEN);
+    TFT_Rectangle_ILI9341.drawString(String(HS0x3D3D1), 160, yOffset + 90);
+  }
+
+}
+
+
+void DisplayBatteryVoltage(ulong rxId, uint8_t len, uint8_t rxBuf[], uint8_t MCP2515number) {
+  debugLoop("called, MCP2515number = % d", MCP2515number);
+
+  static float batteryVoltage;
+  static unsigned long timer = millis();
+
+  if (MCP2515number == 1 && rxId == 0x072E && rxBuf[0] == 0x07 && rxBuf[1] == 0x62 && rxBuf[2] == 0xD9 && rxBuf[3] == 0x11) {
+    float tempBatteryVoltage = ((rxBuf[4] << 8) | rxBuf[5]) * 0.01;
+    debugLoop("Battery Voltage = %f\n", tempBatteryVoltage);
+    if (batteryVoltage != tempBatteryVoltage) {
+      batteryVoltage = tempBatteryVoltage;
+      TFT_Rectangle_ILI9341.drawString(String(batteryVoltage), 100, 100);
+    }
+  }
+
+  if (millis() - timer > 1000) {
+    debugLoop("%ld Send 0x0726\n", millis());
+    timer = millis();
+    frame.can_id = 0x726;
+    frame.can_dlc = 0x08;
+    frame.data[0] = 0x03;
+    frame.data[1] = 0x22;
+    frame.data[2] = 0xD9;
+    frame.data[3] = 0x11;
+    frame.data[4] = 0x00;
+    frame.data[5] = 0x00;
+    frame.data[6] = 0x00;
+    frame.data[7] = 0x00;
+    //CANBusSendCANData(mcp2515_1);
+    mcp2515_1.sendMessage(&frame);
+  }
+
+
+}

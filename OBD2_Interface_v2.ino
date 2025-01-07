@@ -140,14 +140,39 @@ TFT_eSPI_Keyboard Keyboard(TFT_Rectangle_ILI9341);  // Pass the TFT_eSPI instanc
 // Debugging Options (ESP32 Version)
 // DEBUG 0 = Debugging Serial Messages are switched off
 // DEBUG 1 = Debugging Serial Messages are switched on
+// DEBUG 2 = Dedugging Only Special Serial Messages are switch on
+
 #define DEBUG 0
 
-#if DEBUG > 0
+#if DEBUG == 1
 #define debugLoop(fmt, ...) Serial.printf("%s: " fmt "\r\n", __func__, ##__VA_ARGS__) // Serial Debugging On
 #else
 #define debugLoop(fmt, ...)                                           // Serial Debugging Off
 #endif
+#if DEBUG == 2
+#define debugSpecial(fmt, ...) Serial.printf("%s: " fmt "\r\n", __func__, ##__VA_ARGS__) // Serial Debugging On
+#else
+#define debugSpecial(fmt, ...)                                        // Serial Debugging Off
+#endif
 
+
+// Program Send Message Options
+/*
+  **************************************************************
+  *                         CAUTION                            *
+  * Sending messages to a car can have disastrous consequences *
+  *     Only send the correct messages for your car !!         *
+  *                 YOU HAVE BEEN WARNED !!                    *
+  **************************************************************
+*/
+// ALLOW_SENDING_DATA_TO_CAN_BUS 0 = Safe, even if a send message is attempted it will be ignored
+// ALLOW_SENDING_DATA_TO_CAN_BUS 1 = Caution, send message requests will be sent to the vehicle regardsless of consequences
+#define ALLOW_SENDING_DATA_TO_CAN_BUS 1
+
+
+#if ALLOW_SENDING_DATA_TO_CAN_BUS == 1
+#warning "SENDING ACTIVATED - CAUTION !!"
+#endif
 
 // Enums
 enum          CAN_INTERFACES {
@@ -162,7 +187,9 @@ enum          MESSAGE_BOX_BUTTONS {
               BTN_STOP =    8, 
               BTN_CAN1 =    16,
               BTN_CAN2 =    32,
-              BTN_CANBOTH = 64 };
+              BTN_CANBOTH = 64,
+              BTN_YES =     128,
+              BTN_NO =      256};
 enum          BUTTON_TYPES { 
               MENU, 
               MESSAGE_BOX, 
@@ -174,7 +201,7 @@ enum          OUTPUT_TYPES {
               OUTPUT_SD_CARD_SAVVYCAN, 
               OUTPUT_WIFI,
               DISPLAY_POINT_IN_TIME,
-              DISPLAY_BATTERY_VOLTAGE};
+              DISPLAY_TESTING_DATA};
 
 
 // Constants & ESP32-S3 pin declarations
@@ -211,7 +238,8 @@ uint32_t      totalCANReceiveTimeTimer = 0;                           // Times h
 uint16_t      numberOfCANFramesReceived[2] = { 0,0 };                 // Counts the number of CAN Frames received
 uint8_t       outputFormat = false;                                   // Tracks the required output type
 uint32_t      upTimer = micros();                                     // Tracks how long the program has been running, used in the outputs
-
+uint8_t       interfaceNumber = 0;                                    // Could be BTN_CAN1, BTN_CAN2, BTN_CANBOTH and controls the outputs
+uint16_t      displayPointInTime = false;                             // Some outputs allow display of Point in Time data with reduced CAN Frames
 
 // Sets the new output requirements
 void actionOutputChange(uint16_t arg) {
@@ -238,7 +266,7 @@ void actionOutputChange(uint16_t arg) {
     StartReadingCanBus();
     break;
 
-  case DISPLAY_BATTERY_VOLTAGE:
+  case DISPLAY_TESTING_DATA:
     StartReadingCanBus();
     break;
 
@@ -281,7 +309,7 @@ Menu CANSettings[]{
 Menu menuDisplay[]{
   { "Select Required Output", H },
   { "Point in Time", A, 0, actionOutputChange, DISPLAY_POINT_IN_TIME },
-  { "Battery Voltage", A, 0, actionOutputChange, DISPLAY_BATTERY_VOLTAGE },
+  { "Testing Data", A, 0, actionOutputChange, DISPLAY_TESTING_DATA },
   { },                                                                // Menu Terminator
 };
 
@@ -290,7 +318,7 @@ Menu menuOutput[]{
   { "Serial CanDrive", A, 0, actionOutputChange, OUTPUT_FORMAT_CANDRIVE },
   { "Serial SavvyCAN", A, 0, actionOutputChange, OUTPUT_FORMAT_SAVVYCAN },
   { "Save SavvyCAN", A, 0, actionOutputChange, OUTPUT_SD_CARD_SAVVYCAN },
-  { "Wireless Data", A, 0, actionOutputChange, OUTPUT_WIFI },
+  //{ "Wireless Data", A, 0, actionOutputChange, OUTPUT_WIFI },
   { "Display Info", M, menuDisplay},
   { },                                                                // Menu Terminator
 }; 
@@ -299,7 +327,7 @@ Menu menuRoot[]{
   // TODO  WARNING: H (header) option is not available in the horizontal menu
   { "Main Menu", H },
   { "Analyse CAN Bus Capacity", A, 0, actionOutputChange, OUTPUT_ANALYSE_CAN_BUS_RESULTS },
-  { "CAN Settings", M, CANSettings},
+  //{ "CAN Settings", M, CANSettings},
   { "Output Type", M, menuOutput},
   { },                                                                // Menu Terminator
 };
@@ -406,8 +434,6 @@ void StartReadingCanBus() {
   // Reset the display
   ClearDisplay();
 
-  uint8_t interfaceNumber = 0;
-  
   switch (outputFormat) {
   case OUTPUT_FORMAT_CANDRIVE:
     // CanDrive only supports one interface at a time, user must select one first
@@ -424,7 +450,6 @@ void StartReadingCanBus() {
     break;
 
   case OUTPUT_FORMAT_SAVVYCAN:
-    // CanDrive only supports one interface at a time, user must select one first
     interfaceNumber = MessageBox("Select Interface", "SavvyCAN can read single or both CAN interfaces. Please select an option.", BTN_CAN1 + BTN_CAN2 + BTN_CANBOTH);
     debugLoop("interfaceNumber = %d", interfaceNumber);
 
@@ -437,21 +462,23 @@ void StartReadingCanBus() {
     break;
 
   case OUTPUT_SD_CARD_SAVVYCAN:
-    // CanDrive only supports one interface at a time, user must select one first
     interfaceNumber = MessageBox("Select Interface", "SavvyCAN can read single or both CAN interfaces. Please select an option.", BTN_CAN1 + BTN_CAN2 + BTN_CANBOTH);
     debugLoop("interfaceNumber = %d", interfaceNumber);
-
+    displayPointInTime = MessageBox("Point In Time", "Display Point in Time Data (can limit data capture!) ?", BTN_YES + BTN_NO);
+    debugLoop("displayPointInTime = %d", displayPointInTime);
     TFT_Rectangle_ILI9341.setTextColor(TFT_GREEN);
     TFT_Rectangle_ILI9341.drawCentreString("Saving CAN Bus data in SavvyCAN format", 160, 25, 2);
     TFT_Rectangle_ILI9341.drawCentreString("to SD Card at 2,000,000 baud.", 160, 45, 2);
     TFT_Rectangle_ILI9341.drawCentreString("Ensure the SD Card must be formatted using", 160, 65, 2);
     TFT_Rectangle_ILI9341.drawCentreString("FAT32 and be a good quality 32gb or less.", 160, 85, 2);
     TFT_Rectangle_ILI9341.drawCentreString("Press STOP to end the output.", 160, 105, 2);
-    TFT_Rectangle_ILI9341.drawString("MS Date / Time:", 70, 145);
-    TFT_Rectangle_ILI9341.drawString("    MS Car Age:", 70, 165);
-    TFT_Rectangle_ILI9341.drawString("    MS 0x490D3:", 70, 185);
-    TFT_Rectangle_ILI9341.drawString("    HS Car Age:", 70, 205);
-    TFT_Rectangle_ILI9341.drawString("    HS 0x3D3D1:", 70, 225);
+    if (displayPointInTime == BTN_YES) {
+      TFT_Rectangle_ILI9341.drawString("MS Date / Time:", 70, 145);
+      TFT_Rectangle_ILI9341.drawString("    MS Car Age:", 70, 165);
+      TFT_Rectangle_ILI9341.drawString("    MS 0x490D3:", 70, 185);
+      TFT_Rectangle_ILI9341.drawString("    HS Car Age:", 70, 205);
+      TFT_Rectangle_ILI9341.drawString("    HS 0x3D3D1:", 70, 225);
+    }
     TFT_Rectangle_ILI9341.setTextColor(TFT_BLACK);
     break;
 
@@ -466,8 +493,20 @@ void StartReadingCanBus() {
     interfaceNumber = CANBOTH;
     break;
 
-  case DISPLAY_BATTERY_VOLTAGE:
-    interfaceNumber = CAN1;
+  case DISPLAY_TESTING_DATA:
+    TFT_Rectangle_ILI9341.setTextColor(TFT_GREEN);
+    // Maximum of 10 Lines due to display size
+    TFT_Rectangle_ILI9341.drawString("Battery Voltage:", 70, 20);
+    TFT_Rectangle_ILI9341.drawString("         Test 2:", 70, 40);
+    TFT_Rectangle_ILI9341.drawString("    Battery SoC:", 70, 60);
+    TFT_Rectangle_ILI9341.drawString("  Also PID 4028:", 70, 80);
+    TFT_Rectangle_ILI9341.drawString("KM/L 0x494D3D4:", 70, 100);
+    TFT_Rectangle_ILI9341.drawString("KM/L 0x490D5D6:", 70, 120);
+    TFT_Rectangle_ILI9341.drawString("KM/L 0x321D6D7:", 70, 140);
+    TFT_Rectangle_ILI9341.drawString("KM/L 0x155D5D6:", 70, 160);
+    TFT_Rectangle_ILI9341.drawString("  Module Deg C:", 70, 180);
+    TFT_Rectangle_ILI9341.drawString("   Rear Torque:", 70, 200);
+    interfaceNumber = CANBOTH;
     break;
 
   default:
@@ -573,8 +612,8 @@ void CANFrameProcessing(uint8_t whichCANBus) {
     DisplayPointInTime(frame.can_id, frame.can_dlc, frame.data, whichCANBus, 35);
     break;
 
-  case DISPLAY_BATTERY_VOLTAGE:
-    DisplayBatteryVoltage(frame.can_id, frame.can_dlc, frame.data, whichCANBus);
+  case DISPLAY_TESTING_DATA:
+    DisplayTestingData(frame.can_id, frame.can_dlc, frame.data, whichCANBus);
     break;
 
   default:
@@ -728,8 +767,12 @@ bool CANBusReadCANData(MCP2515 CANBusModule) {
 
 // Send CAN Data
 bool CANBusSendCANData(MCP2515 CANBusModule) {
+#if ALLOW_SENDING_DATA_TO_CAN_BUS == 1
   CANBusModule.sendMessage(&frame);
   return true;
+#else
+  return false;
+#endif
 }
 
 
@@ -1099,7 +1142,7 @@ void ProcessMenu(uint8_t btnNumber, uint8_t menuBtnStartPos) {
 
 // Displays a message box on the display and allows the user to respond
 // Use options to specify buttons, i.e. BTN_OK + BTN_IGNORE + BTN_CANCEL
-uint8_t MessageBox(const char* title, const char* message, uint8_t options) {
+uint16_t MessageBox(const char* title, const char* message, uint16_t options) {
   debugLoop("Called\n");
   uint16_t result = 0;
   uint16_t boxX = TFT_Rectangle_ILI9341.width() * 0.05;
@@ -1168,6 +1211,8 @@ uint8_t MessageBox(const char* title, const char* message, uint8_t options) {
   if (options & BTN_CAN1) { messageBtnText[numberOfOptionButtons] = "CAN 1"; numberOfOptionButtons++; }
   if (options & BTN_CAN2) { messageBtnText[numberOfOptionButtons] = "CAN 2"; numberOfOptionButtons++; }
   if (options & BTN_CANBOTH) { messageBtnText[numberOfOptionButtons] = "BOTH"; numberOfOptionButtons++; }
+  if (options & BTN_YES) { messageBtnText[numberOfOptionButtons] = "YES"; numberOfOptionButtons++; }
+  if (options & BTN_NO) { messageBtnText[numberOfOptionButtons] = "NO"; numberOfOptionButtons++; }
 
   debugLoop("MessageBox numberOfOptionButtons = %d", numberOfOptionButtons);
 
@@ -1221,12 +1266,17 @@ uint8_t MessageBox(const char* title, const char* message, uint8_t options) {
   const char* helper3 = "CAN 1";
   const char* helper4 = "CAN 2";
   const char* helper5 = "BOTH";
+  const char* helper6 = "YES";
+  const char* helper7 = "NO";
+
   if (messageBtnText[result] == helper0) result = BTN_OK;
   else if (messageBtnText[result] == helper1) result = BTN_IGNORE;
   else if (messageBtnText[result] == helper2) result = BTN_CANCEL;
   else if (messageBtnText[result] == helper3) result = BTN_CAN1;
   else if (messageBtnText[result] == helper4) result = BTN_CAN2;
   else if (messageBtnText[result] == helper5) result = BTN_CANBOTH;
+  else if (messageBtnText[result] == helper6) result = BTN_YES;
+  else if (messageBtnText[result] == helper7) result = BTN_NO;
 
   return result;
 }
@@ -1542,7 +1592,7 @@ void OutputSDCardSavvyCAN(ulong rxId, uint8_t len, uint8_t rxBuf[], uint8_t MCP2
     SD_Port.printf("\n");
   }
 
-  DisplayPointInTime(frame.can_id, frame.can_dlc, frame.data, MCP2515number, 140);
+  if(displayPointInTime == BTN_YES) DisplayPointInTime(frame.can_id, frame.can_dlc, frame.data, MCP2515number, 140);
 }
 
 
@@ -1611,37 +1661,242 @@ void DisplayPointInTime(ulong rxId, uint8_t len, uint8_t rxBuf[], uint8_t MCP251
 }
 
 
-void DisplayBatteryVoltage(ulong rxId, uint8_t len, uint8_t rxBuf[], uint8_t MCP2515number) {
+void DisplayTestingData(ulong rxId, uint8_t len, uint8_t rxBuf[], uint8_t MCP2515number) {
   debugLoop("called, MCP2515number = % d", MCP2515number);
 
-  static float batteryVoltage;
-  static unsigned long timer = millis();
+  static unsigned long timerMillis = millis();
+  static byte sendMessageCounter = 0;
+  
+  // Control the Requests for Data sent on the CAN Bus to the vehicle
+  // This will only send one "Request for Data" every x milliseconds
+  // sendMessageCounter controls which message will be sent, upto 10 messages
+  // On Land Rover Freelander 2 is seems ok to keep requesting data even though you may not always get a response, thus there are no checks to ensure responses
+  // On Land Rover Freelander 2 all requests must be sent on the High Speed CAN Bus (500kbps)
+  /*
+  **************************************************************
+  *                         CAUTION                            *
+  * Sending messages to a car can have disastrous consequences *
+  *     Only send the correct messages for your car !!         *
+  *                 YOU HAVE BEEN WARNED !!                    *
+  **************************************************************
+  */
+  if (millis() - timerMillis > 100) {
+    timerMillis = millis();
+    if (sendMessageCounter++ > 9) sendMessageCounter = 0;
+    
+    // Request BCM 292 Analogue input 11
+    if (sendMessageCounter == 0) {
+      debugSpecial("%ld Send 0x0726 Battery Voltage Request\n", millis());
+      frame.can_id = 0x726;
+      frame.can_dlc = 0x08;
+      frame.data[0] = 0x03;
+      frame.data[1] = 0x22;
+      frame.data[2] = 0xD9;
+      frame.data[3] = 0x11;
+      frame.data[4] = 0x00;
+      frame.data[5] = 0x00;
+      frame.data[6] = 0x00;
+      frame.data[7] = 0x00;
+      // Never use the direct call mcp2515_1.sendMassage(&frame)!!
+#if ALLOW_SENDING_DATA_TO_CAN_BUS == 1
+      CANBusSendCANData(mcp2515_1);
+#endif
+    }
+    
+    // Request BCM 141 Vehicle battery state of charge
+    else if (sendMessageCounter == 1) {
+      debugSpecial("%ld Send 0x0726 Battery SoC Request\n", millis());
+      frame.can_id = 0x726;
+      frame.can_dlc = 0x08;
+      frame.data[0] = 0x03;
+      frame.data[1] = 0x22;
+      frame.data[2] = 0x40;
+      frame.data[3] = 0x28;
+      frame.data[4] = 0x00;
+      frame.data[5] = 0x00;
+      frame.data[6] = 0x00;
+      frame.data[7] = 0x00;
+      // Never use the direct call mcp2515_1.sendMassage(&frame)!!
+#if ALLOW_SENDING_DATA_TO_CAN_BUS == 1
+      CANBusSendCANData(mcp2515_1);
+#endif
+    }
 
+    // BCM 218 Power status time data capture - PID 4028: Vehicle battery state of charge
+    else if (sendMessageCounter == 2) {
+      debugSpecial("%ld Send 0x0726 PID Battery SoC Request\n", millis());
+      frame.can_id = 0x726;
+      frame.can_dlc = 0x08;
+      frame.data[0] = 0x03;
+      frame.data[1] = 0x22;
+      frame.data[2] = 0x41;
+      frame.data[3] = 0xC3;
+      frame.data[4] = 0x00;
+      frame.data[5] = 0x00;
+      frame.data[6] = 0x00;
+      frame.data[7] = 0x00;
+      // Never use the direct call mcp2515_1.sendMassage(&frame)!!
+#if ALLOW_SENDING_DATA_TO_CAN_BUS == 1
+      CANBusSendCANData(mcp2515_1);
+#endif
+    }
+
+    // RDCM 23 Control module internal temperature
+    else if (sendMessageCounter == 3) {
+      debugSpecial("%ld Send 0x0795 Control module internal temperature\n", millis());
+      frame.can_id = 0x795;
+      frame.can_dlc = 0x08;
+      frame.data[0] = 0x03;
+      frame.data[1] = 0x22;
+      frame.data[2] = 0xD1;
+      frame.data[3] = 0x16;
+      frame.data[4] = 0x00;
+      frame.data[5] = 0x00;
+      frame.data[6] = 0x00;
+      frame.data[7] = 0x00;
+      // Never use the direct call mcp2515_1.sendMassage(&frame)!!
+#if ALLOW_SENDING_DATA_TO_CAN_BUS == 1
+      CANBusSendCANData(mcp2515_1);
+#endif
+    }
+
+    // RDCM 26 All wheel drive propulsion shaft torque 0.000 lbf ft
+    else if (sendMessageCounter == 4) {
+      debugSpecial("%ld Send 0x0795 All wheel drive propulsion shaft torque\n", millis());
+      frame.can_id = 0x795;
+      frame.can_dlc = 0x08;
+      frame.data[0] = 0x03;
+      frame.data[1] = 0x22;
+      frame.data[2] = 0xD9;
+      frame.data[3] = 0x30;
+      frame.data[4] = 0x00;
+      frame.data[5] = 0x00;
+      frame.data[6] = 0x00;
+      frame.data[7] = 0x00;
+      // Never use the direct call mcp2515_1.sendMassage(&frame)!!
+#if ALLOW_SENDING_DATA_TO_CAN_BUS == 1
+      CANBusSendCANData(mcp2515_1);
+#endif
+    }
+
+    // Add more data requests here, max sendMessageCounter == 9
+
+  }
+
+  // BCM 292 Analogue input 11
   if (MCP2515number == 1 && rxId == 0x072E && rxBuf[0] == 0x07 && rxBuf[1] == 0x62 && rxBuf[2] == 0xD9 && rxBuf[3] == 0x11) {
-    float tempBatteryVoltage = ((rxBuf[4] << 8) | rxBuf[5]) * 0.01;
-    debugLoop("Battery Voltage = %f\n", tempBatteryVoltage);
-    if (batteryVoltage != tempBatteryVoltage) {
-      batteryVoltage = tempBatteryVoltage;
-      TFT_Rectangle_ILI9341.drawString(String(batteryVoltage), 100, 100);
+    float newValue = ((rxBuf[4] << 8) | rxBuf[5]) * 0.01;
+    static float oldValue;
+    debugSpecial("Battery Voltage = %f\n", newValue);
+    if (oldValue != newValue) {
+      oldValue = newValue;
+      TFT_Rectangle_ILI9341.fillRect(145, 10, 110, 20, TFT_LANDROVERGREEN);
+      TFT_Rectangle_ILI9341.setTextColor(TFT_GREEN);
+      TFT_Rectangle_ILI9341.drawString(String(newValue) + "V", 200, 20);
     }
   }
 
-  if (millis() - timer > 1000) {
-    debugLoop("%ld Send 0x0726\n", millis());
-    timer = millis();
-    frame.can_id = 0x726;
-    frame.can_dlc = 0x08;
-    frame.data[0] = 0x03;
-    frame.data[1] = 0x22;
-    frame.data[2] = 0xD9;
-    frame.data[3] = 0x11;
-    frame.data[4] = 0x00;
-    frame.data[5] = 0x00;
-    frame.data[6] = 0x00;
-    frame.data[7] = 0x00;
-    //CANBusSendCANData(mcp2515_1);
-    mcp2515_1.sendMessage(&frame);
+  // BCM 141 Vehicle battery state of charge
+  else if (MCP2515number == 1 && rxId == 0x072E && rxBuf[0] == 0x04 && rxBuf[1] == 0x62 && rxBuf[2] == 0x40 && rxBuf[3] == 0x28) {
+    byte newValue = rxBuf[4];
+    static byte oldValue;
+    debugSpecial("Battery PID SoC = %d\n", newValue);
+    if (oldValue != newValue) {
+      oldValue = newValue;
+      TFT_Rectangle_ILI9341.fillRect(145, 50, 110, 20, TFT_LANDROVERGREEN);
+      TFT_Rectangle_ILI9341.setTextColor(TFT_GREEN);
+      TFT_Rectangle_ILI9341.drawString(String(newValue) + "%", 200, 60);
+    }
   }
 
+  // BCM 218 Power status time data capture - PID 4028: Vehicle battery state of charge
+  else if (MCP2515number == 1 && rxId == 0x072E && rxBuf[0] == 0x22 && rxBuf[1] == 0x00 && rxBuf[2] == 0x10 && rxBuf[3] == 0x01) {
+    byte newValue = rxBuf[5];
+    static byte oldValue;
+    debugSpecial("Battery PID SoC = %d\n", newValue);
+    if (oldValue != newValue) {
+      oldValue = newValue;
+      TFT_Rectangle_ILI9341.fillRect(145, 70, 110, 20, TFT_LANDROVERGREEN);
+      TFT_Rectangle_ILI9341.setTextColor(TFT_GREEN);
+      TFT_Rectangle_ILI9341.drawString(String(newValue) + "%", 200, 80);
+    }
+  }
 
+  // Testing Current MPG probably reported as KM/L or something
+  else if (MCP2515number == 2 && rxId == 0x0494) {
+    int64_t newValue = (rxBuf[3] << 8) | rxBuf[4];
+    static int64_t oldValue;
+    debugSpecial("Testing Current MPG\n");
+    if (oldValue != newValue) {
+      oldValue = newValue;
+      TFT_Rectangle_ILI9341.fillRect(145, 90, 110, 20, TFT_LANDROVERGREEN);
+      TFT_Rectangle_ILI9341.setTextColor(TFT_GREEN);
+      TFT_Rectangle_ILI9341.drawString(String(newValue), 200, 100);
+    }
+  }
+
+  // Testing Current MPG probably reported as KM/L or something
+  else if (MCP2515number == 2 && rxId == 0x0490) {
+    int64_t newValue = (rxBuf[5] << 8) | rxBuf[6];
+    static int64_t oldValue;
+    debugSpecial("Testing Current MPG\n");
+    if (oldValue != newValue) {
+      oldValue = newValue;
+      TFT_Rectangle_ILI9341.fillRect(145, 110, 110, 20, TFT_LANDROVERGREEN);
+      TFT_Rectangle_ILI9341.setTextColor(TFT_GREEN);
+      TFT_Rectangle_ILI9341.drawString(String(newValue), 200, 120);
+    }
+  }
+
+  // Testing Current MPG probably reported as KM/L or something
+  else if (MCP2515number == 1 && rxId == 0x0321) {
+    int64_t newValue = (rxBuf[6] << 8) | rxBuf[7];
+    static int64_t oldValue;
+    debugSpecial("Testing Current MPG\n");
+    if (oldValue != newValue) {
+      oldValue = newValue;
+      TFT_Rectangle_ILI9341.fillRect(145, 130, 110, 20, TFT_LANDROVERGREEN);
+      TFT_Rectangle_ILI9341.setTextColor(TFT_GREEN);
+      TFT_Rectangle_ILI9341.drawString(String(newValue), 200, 140);
+    }
+  }
+
+  // Testing Current MPG probably reported as KM/L or something
+  else if (MCP2515number == 1 && rxId == 0x0155) {
+    int64_t newValue = (rxBuf[5] << 8) | rxBuf[6];
+    static int64_t oldValue;
+    debugSpecial("Testing Current MPG\n");
+    if (oldValue != newValue) {
+      oldValue = newValue;
+      TFT_Rectangle_ILI9341.fillRect(145, 150, 110, 20, TFT_LANDROVERGREEN);
+      TFT_Rectangle_ILI9341.setTextColor(TFT_GREEN);
+      TFT_Rectangle_ILI9341.drawString(String(newValue), 200, 160);
+    }
+  }
+
+  // RDCM 23 Control module internal temperature C
+  else if (MCP2515number == 1 && rxId == 0x079D && rxBuf[0] == 0x04 && rxBuf[1] == 0x62 && rxBuf[2] == 0xD1 && rxBuf[3] == 0x16) {
+    byte newValue = rxBuf[4];
+    static int64_t oldValue;
+    debugSpecial("Control module internal temperature = %d\n", newValue);
+    if (oldValue != newValue) {
+      oldValue = newValue;
+      TFT_Rectangle_ILI9341.fillRect(145, 70, 110, 20, TFT_LANDROVERGREEN);
+      TFT_Rectangle_ILI9341.setTextColor(TFT_GREEN);
+      TFT_Rectangle_ILI9341.drawString(String(newValue) + "C", 200, 180);
+    }
+  }
+
+  // RDCM 26 All wheel drive propulsion shaft torque 0.000 lbf ft
+  else if (MCP2515number == 1 && rxId == 0x079D && rxBuf[0] == 0x05 && rxBuf[1] == 0x62 && rxBuf[2] == 0xD9 && rxBuf[3] == 0x30) {
+    byte newValue = (rxBuf[4] << 8) | rxBuf[5];
+    static byte oldValue;
+    debugSpecial("Rear Torque = %d\n", newValue);
+    if (oldValue != newValue) {
+      oldValue = newValue;
+      TFT_Rectangle_ILI9341.fillRect(145, 70, 110, 20, TFT_LANDROVERGREEN);
+      TFT_Rectangle_ILI9341.setTextColor(TFT_GREEN);
+      TFT_Rectangle_ILI9341.drawString(String(newValue) + "lbf ft", 200, 200);
+    }
+  }
 }

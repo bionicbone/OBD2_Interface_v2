@@ -1724,24 +1724,24 @@ void DisplayTestingData(ulong rxId, uint8_t len, uint8_t rxBuf[], uint8_t MCP251
 //#endif
 //    }
    
-//    // Request BCM 141 Vehicle battery state of charge
-//    else if (sendMessageCounter == 1) {
-//      debugSpecial("%ld Send 0x0726 Battery SoC Request\n", millis());
-//      frame.can_id = 0x726;
-//      frame.can_dlc = 0x08;
-//      frame.data[0] = 0x03;
-//      frame.data[1] = 0x22;
-//      frame.data[2] = 0x40;
-//      frame.data[3] = 0x28;
-//      frame.data[4] = 0x00;
-//      frame.data[5] = 0x00;
-//      frame.data[6] = 0x00;
-//      frame.data[7] = 0x00;
-//      // Never use the direct call mcp2515_1.sendMassage(&frame)!!
-//#if ALLOW_SENDING_DATA_TO_CAN_BUS == 1
-//      CANBusSendCANData(mcp2515_1);
-//#endif
-//    }
+    // Request BCM 141 Vehicle battery state of charge
+    if (sendMessageCounter == 2) {
+      debugSpecial("%ld Send 0x0726 Battery SoC Request\n", millis());
+      frame.can_id = 0x726;
+      frame.can_dlc = 0x08;
+      frame.data[0] = 0x03;
+      frame.data[1] = 0x22;
+      frame.data[2] = 0x40;
+      frame.data[3] = 0x28;
+      frame.data[4] = 0x00;
+      frame.data[5] = 0x00;
+      frame.data[6] = 0x00;
+      frame.data[7] = 0x00;
+      // Never use the direct call mcp2515_1.sendMassage(&frame)!!
+#if ALLOW_SENDING_DATA_TO_CAN_BUS == 1
+      CANBusSendCANData(mcp2515_1);
+#endif
+    }
 
 //    // BCM 218 Power status time data capture - PID 4028: Vehicle battery state of charge
 //    else if (sendMessageCounter == 2) {
@@ -1798,7 +1798,7 @@ void DisplayTestingData(ulong rxId, uint8_t len, uint8_t rxBuf[], uint8_t MCP251
 //    }
 
     // RDCM 26 All wheel drive propulsion shaft torque 0.000 lbf ft
-    if (sendMessageCounter == 4) {
+    else if (sendMessageCounter == 5) {
       debugSpecial("%ld Send 0x0795 All wheel drive propulsion shaft torque\n", millis());
       frame.can_id = 0x795;
       frame.can_dlc = 0x08;

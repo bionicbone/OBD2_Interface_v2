@@ -96,6 +96,11 @@ TFT_eSPI_Keyboard Keyboard(TFT_Rectangle_ILI9341);  // Pass the TFT_eSPI instanc
 
 // Connections to the ESP32-S3 Follow:
 /*
+  Power 5v Switched Supply
+  GND = GND
+  12v = VCC In
+  5v Out = 5v
+  
   ESP32-S3 & two MCP2515 Breakout Board (HW-184) - 8 MHz Crystal
   MCP2515_0 for 500kbps CAN Bus
   SCK = pin 12
@@ -497,15 +502,15 @@ void StartReadingCanBus() {
     TFT_Rectangle_ILI9341.setTextColor(TFT_GREEN);
     // Maximum of 10 Lines due to display size
     TFT_Rectangle_ILI9341.drawString("Battery Voltage:", 70, 20);
-    TFT_Rectangle_ILI9341.drawString("         Test 2:", 70, 40);
+    TFT_Rectangle_ILI9341.drawString("Unused 2:", 70, 40);
     TFT_Rectangle_ILI9341.drawString("    Battery SoC:", 70, 60);
     TFT_Rectangle_ILI9341.drawString("  Also PID 4028:", 70, 80);
-    TFT_Rectangle_ILI9341.drawString("KM/L 0x494D3D4:", 70, 100);
-    TFT_Rectangle_ILI9341.drawString("KM/L 0x490D5D6:", 70, 120);
-    TFT_Rectangle_ILI9341.drawString("KM/L 0x321D6D7:", 70, 140);
-    TFT_Rectangle_ILI9341.drawString("KM/L 0x155D5D6:", 70, 160);
-    TFT_Rectangle_ILI9341.drawString("  Module Deg C:", 70, 180);
-    TFT_Rectangle_ILI9341.drawString("   Rear Torque:", 70, 200);
+    TFT_Rectangle_ILI9341.drawString("Unused 5:", 70, 100);
+    TFT_Rectangle_ILI9341.drawString("Unused 6:", 70, 120);
+    TFT_Rectangle_ILI9341.drawString("Unused 7:", 70, 140);
+    TFT_Rectangle_ILI9341.drawString("  Front Torque:", 70, 160);
+    TFT_Rectangle_ILI9341.drawString("   Rear Torque:", 70, 180);
+    TFT_Rectangle_ILI9341.drawString("  Module Deg C:", 70, 200);
     interfaceNumber = CANBOTH;
     break;
 
@@ -1684,84 +1689,116 @@ void DisplayTestingData(ulong rxId, uint8_t len, uint8_t rxBuf[], uint8_t MCP251
     timerMillis = millis();
     if (sendMessageCounter++ > 9) sendMessageCounter = 0;
     
-    // Request BCM 292 Analogue input 11
-    if (sendMessageCounter == 0) {
-      debugSpecial("%ld Send 0x0726 Battery Voltage Request\n", millis());
-      frame.can_id = 0x726;
-      frame.can_dlc = 0x08;
-      frame.data[0] = 0x03;
-      frame.data[1] = 0x22;
-      frame.data[2] = 0xD9;
-      frame.data[3] = 0x11;
-      frame.data[4] = 0x00;
-      frame.data[5] = 0x00;
-      frame.data[6] = 0x00;
-      frame.data[7] = 0x00;
-      // Never use the direct call mcp2515_1.sendMassage(&frame)!!
-#if ALLOW_SENDING_DATA_TO_CAN_BUS == 1
-      CANBusSendCANData(mcp2515_1);
-#endif
-    }
-    
-    // Request BCM 141 Vehicle battery state of charge
-    else if (sendMessageCounter == 1) {
-      debugSpecial("%ld Send 0x0726 Battery SoC Request\n", millis());
-      frame.can_id = 0x726;
-      frame.can_dlc = 0x08;
-      frame.data[0] = 0x03;
-      frame.data[1] = 0x22;
-      frame.data[2] = 0x40;
-      frame.data[3] = 0x28;
-      frame.data[4] = 0x00;
-      frame.data[5] = 0x00;
-      frame.data[6] = 0x00;
-      frame.data[7] = 0x00;
-      // Never use the direct call mcp2515_1.sendMassage(&frame)!!
-#if ALLOW_SENDING_DATA_TO_CAN_BUS == 1
-      CANBusSendCANData(mcp2515_1);
-#endif
-    }
+//    // Request BCM 292 Analogue input 11
+//    if (sendMessageCounter == 0) {
+//      debugSpecial("%ld Send 0x0726 Battery Voltage Request\n", millis());
+//      // This seems to need two calls
+//      frame.can_id = 0x756;
+//      frame.can_dlc = 0x08;
+//      frame.data[0] = 0x03;
+//      frame.data[1] = 0x22;
+//      frame.data[2] = 0xF1;
+//      frame.data[3] = 0x90;
+//      frame.data[4] = 0x00;
+//      frame.data[5] = 0x00;
+//      frame.data[6] = 0x00;
+//      frame.data[7] = 0x00;
+//      // Never use the direct call mcp2515_1.sendMassage(&frame)!!
+//#if ALLOW_SENDING_DATA_TO_CAN_BUS == 1
+//      CANBusSendCANData(mcp2515_1);
+//#endif
+//      
+//      frame.can_id = 0x726;
+//      frame.can_dlc = 0x08;
+//      frame.data[0] = 0x03;
+//      frame.data[1] = 0x22;
+//      frame.data[2] = 0xD9;
+//      frame.data[3] = 0x11;
+//      frame.data[4] = 0x00;
+//      frame.data[5] = 0x00;
+//      frame.data[6] = 0x00;
+//      frame.data[7] = 0x00;
+//      // Never use the direct call mcp2515_1.sendMassage(&frame)!!
+//#if ALLOW_SENDING_DATA_TO_CAN_BUS == 1
+//      CANBusSendCANData(mcp2515_1);
+//#endif
+//    }
+   
+//    // Request BCM 141 Vehicle battery state of charge
+//    else if (sendMessageCounter == 1) {
+//      debugSpecial("%ld Send 0x0726 Battery SoC Request\n", millis());
+//      frame.can_id = 0x726;
+//      frame.can_dlc = 0x08;
+//      frame.data[0] = 0x03;
+//      frame.data[1] = 0x22;
+//      frame.data[2] = 0x40;
+//      frame.data[3] = 0x28;
+//      frame.data[4] = 0x00;
+//      frame.data[5] = 0x00;
+//      frame.data[6] = 0x00;
+//      frame.data[7] = 0x00;
+//      // Never use the direct call mcp2515_1.sendMassage(&frame)!!
+//#if ALLOW_SENDING_DATA_TO_CAN_BUS == 1
+//      CANBusSendCANData(mcp2515_1);
+//#endif
+//    }
 
-    // BCM 218 Power status time data capture - PID 4028: Vehicle battery state of charge
-    else if (sendMessageCounter == 2) {
-      debugSpecial("%ld Send 0x0726 PID Battery SoC Request\n", millis());
-      frame.can_id = 0x726;
-      frame.can_dlc = 0x08;
-      frame.data[0] = 0x03;
-      frame.data[1] = 0x22;
-      frame.data[2] = 0x41;
-      frame.data[3] = 0xC3;
-      frame.data[4] = 0x00;
-      frame.data[5] = 0x00;
-      frame.data[6] = 0x00;
-      frame.data[7] = 0x00;
-      // Never use the direct call mcp2515_1.sendMassage(&frame)!!
-#if ALLOW_SENDING_DATA_TO_CAN_BUS == 1
-      CANBusSendCANData(mcp2515_1);
-#endif
-    }
+//    // BCM 218 Power status time data capture - PID 4028: Vehicle battery state of charge
+//    else if (sendMessageCounter == 2) {
+//      debugSpecial("%ld Send 0x0726 PID Battery SoC Request\n", millis());
+//      // This seems to need two calls
+//      frame.can_id = 0x726;
+//      frame.can_dlc = 0x08;
+//      frame.data[0] = 0x30;
+//      frame.data[1] = 0x00;
+//      frame.data[2] = 0x00;
+//      frame.data[3] = 0x00;
+//      frame.data[4] = 0x00;
+//      frame.data[5] = 0x00;
+//      frame.data[6] = 0x00;
+//      frame.data[7] = 0x00;
+//      // Never use the direct call mcp2515_1.sendMassage(&frame)!!
+//#if ALLOW_SENDING_DATA_TO_CAN_BUS == 1
+//      CANBusSendCANData(mcp2515_1);
+//#endif
+//      
+//      frame.can_id = 0x726;
+//      frame.can_dlc = 0x08;
+//      frame.data[0] = 0x03;
+//      frame.data[1] = 0x22;
+//      frame.data[2] = 0x41;
+//      frame.data[3] = 0xC3;
+//      frame.data[4] = 0x00;
+//      frame.data[5] = 0x00;
+//      frame.data[6] = 0x00;
+//      frame.data[7] = 0x00;
+//      // Never use the direct call mcp2515_1.sendMassage(&frame)!!
+//#if ALLOW_SENDING_DATA_TO_CAN_BUS == 1
+//      CANBusSendCANData(mcp2515_1);
+//#endif
+//    }
 
-    // RDCM 23 Control module internal temperature
-    else if (sendMessageCounter == 3) {
-      debugSpecial("%ld Send 0x0795 Control module internal temperature\n", millis());
-      frame.can_id = 0x795;
-      frame.can_dlc = 0x08;
-      frame.data[0] = 0x03;
-      frame.data[1] = 0x22;
-      frame.data[2] = 0xD1;
-      frame.data[3] = 0x16;
-      frame.data[4] = 0x00;
-      frame.data[5] = 0x00;
-      frame.data[6] = 0x00;
-      frame.data[7] = 0x00;
-      // Never use the direct call mcp2515_1.sendMassage(&frame)!!
-#if ALLOW_SENDING_DATA_TO_CAN_BUS == 1
-      CANBusSendCANData(mcp2515_1);
-#endif
-    }
+//    // RDCM 23 Control module internal temperature
+//    else if (sendMessageCounter == 3) {
+//      debugSpecial("%ld Send 0x0795 Control module internal temperature\n", millis());
+//      frame.can_id = 0x795;
+//      frame.can_dlc = 0x08;
+//      frame.data[0] = 0x03;
+//      frame.data[1] = 0x22;
+//      frame.data[2] = 0xD1;
+//      frame.data[3] = 0x16;
+//      frame.data[4] = 0x00;
+//      frame.data[5] = 0x00;
+//      frame.data[6] = 0x00;
+//      frame.data[7] = 0x00;
+//      // Never use the direct call mcp2515_1.sendMassage(&frame)!!
+//#if ALLOW_SENDING_DATA_TO_CAN_BUS == 1
+//      CANBusSendCANData(mcp2515_1);
+//#endif
+//    }
 
     // RDCM 26 All wheel drive propulsion shaft torque 0.000 lbf ft
-    else if (sendMessageCounter == 4) {
+    if (sendMessageCounter == 4) {
       debugSpecial("%ld Send 0x0795 All wheel drive propulsion shaft torque\n", millis());
       frame.can_id = 0x795;
       frame.can_dlc = 0x08;
@@ -1779,10 +1816,30 @@ void DisplayTestingData(ulong rxId, uint8_t len, uint8_t rxBuf[], uint8_t MCP251
 #endif
     }
 
+    // RDCM 26 All wheel drive propulsion shaft torque 0.000 lbf ft
+    else if (sendMessageCounter == 9) {
+    debugSpecial("%ld Send 0x0795 Propulsion torque  lbf ft\n", millis());
+    frame.can_id = 0x795;
+    frame.can_dlc = 0x08;
+    frame.data[0] = 0x03;
+    frame.data[1] = 0x22;
+    frame.data[2] = 0xD9;
+    frame.data[3] = 0x62;
+    frame.data[4] = 0x00;
+    frame.data[5] = 0x00;
+    frame.data[6] = 0x00;
+    frame.data[7] = 0x00;
+    // Never use the direct call mcp2515_1.sendMassage(&frame)!!
+#if ALLOW_SENDING_DATA_TO_CAN_BUS == 1
+    CANBusSendCANData(mcp2515_1);
+#endif
+    }
+
     // Add more data requests here, max sendMessageCounter == 9
 
   }
 
+  // Line 1
   // BCM 292 Analogue input 11
   if (MCP2515number == 1 && rxId == 0x072E && rxBuf[0] == 0x07 && rxBuf[1] == 0x62 && rxBuf[2] == 0xD9 && rxBuf[3] == 0x11) {
     float newValue = ((rxBuf[4] << 8) | rxBuf[5]) * 0.01;
@@ -1796,6 +1853,21 @@ void DisplayTestingData(ulong rxId, uint8_t len, uint8_t rxBuf[], uint8_t MCP251
     }
   }
 
+  // Line 2
+  // Unused
+  else if (MCP2515number == 1 && rxId == 0x0000) {
+    byte newValue = 0; //rxBuf[4];
+    static byte oldValue;
+    debugSpecial("Test Line 2\n", newValue);
+    if (oldValue != newValue) {
+      oldValue = newValue;
+      TFT_Rectangle_ILI9341.fillRect(145, 50, 110, 20, TFT_LANDROVERGREEN);
+      TFT_Rectangle_ILI9341.setTextColor(TFT_GREEN);
+      TFT_Rectangle_ILI9341.drawString(String(newValue) + "%", 200, 60);
+    }
+  }
+
+  // Line 3
   // BCM 141 Vehicle battery state of charge
   else if (MCP2515number == 1 && rxId == 0x072E && rxBuf[0] == 0x04 && rxBuf[1] == 0x62 && rxBuf[2] == 0x40 && rxBuf[3] == 0x28) {
     byte newValue = rxBuf[4];
@@ -1809,6 +1881,7 @@ void DisplayTestingData(ulong rxId, uint8_t len, uint8_t rxBuf[], uint8_t MCP251
     }
   }
 
+  // Line 4
   // BCM 218 Power status time data capture - PID 4028: Vehicle battery state of charge
   else if (MCP2515number == 1 && rxId == 0x072E && rxBuf[0] == 0x22 && rxBuf[1] == 0x00 && rxBuf[2] == 0x10 && rxBuf[3] == 0x01) {
     byte newValue = rxBuf[5];
@@ -1822,11 +1895,12 @@ void DisplayTestingData(ulong rxId, uint8_t len, uint8_t rxBuf[], uint8_t MCP251
     }
   }
 
-  // Testing Current MPG probably reported as KM/L or something
-  else if (MCP2515number == 2 && rxId == 0x0494) {
-    int64_t newValue = (rxBuf[3] << 8) | rxBuf[4];
+  // Line 5
+  // Unused
+  else if (MCP2515number == 2 && rxId == 0x0000) {
+    int64_t newValue = 0; // example (rxBuf[3] << 8) | rxBuf[4];
     static int64_t oldValue;
-    debugSpecial("Testing Current MPG\n");
+    debugSpecial("Test Line 5\n");
     if (oldValue != newValue) {
       oldValue = newValue;
       TFT_Rectangle_ILI9341.fillRect(145, 90, 110, 20, TFT_LANDROVERGREEN);
@@ -1835,11 +1909,12 @@ void DisplayTestingData(ulong rxId, uint8_t len, uint8_t rxBuf[], uint8_t MCP251
     }
   }
 
-  // Testing Current MPG probably reported as KM/L or something
-  else if (MCP2515number == 2 && rxId == 0x0490) {
-    int64_t newValue = (rxBuf[5] << 8) | rxBuf[6];
+  // Line 6
+  // Unused
+  else if (MCP2515number == 2 && rxId == 0x0000) {
+    int64_t newValue = 0;
     static int64_t oldValue;
-    debugSpecial("Testing Current MPG\n");
+    debugSpecial("Test Line 6\n");
     if (oldValue != newValue) {
       oldValue = newValue;
       TFT_Rectangle_ILI9341.fillRect(145, 110, 110, 20, TFT_LANDROVERGREEN);
@@ -1848,11 +1923,12 @@ void DisplayTestingData(ulong rxId, uint8_t len, uint8_t rxBuf[], uint8_t MCP251
     }
   }
 
-  // Testing Current MPG probably reported as KM/L or something
-  else if (MCP2515number == 1 && rxId == 0x0321) {
-    int64_t newValue = (rxBuf[6] << 8) | rxBuf[7];
+  // Line 7
+  // Unused
+  else if (MCP2515number == 1 && rxId == 0x0000) {
+    int64_t newValue = 0;
     static int64_t oldValue;
-    debugSpecial("Testing Current MPG\n");
+    debugSpecial("Test Line 7\n");
     if (oldValue != newValue) {
       oldValue = newValue;
       TFT_Rectangle_ILI9341.fillRect(145, 130, 110, 20, TFT_LANDROVERGREEN);
@@ -1861,11 +1937,12 @@ void DisplayTestingData(ulong rxId, uint8_t len, uint8_t rxBuf[], uint8_t MCP251
     }
   }
 
-  // Testing Current MPG probably reported as KM/L or something
-  else if (MCP2515number == 1 && rxId == 0x0155) {
-    int64_t newValue = (rxBuf[5] << 8) | rxBuf[6];
+  // Line 8
+  // RDCM 29 Propulsion torque  lbf ft
+  else if (MCP2515number == 1 && rxId == 0x079D && rxBuf[0] == 0x05 && rxBuf[1] == 0x62 && rxBuf[2] == 0xD9 && rxBuf[3] == 0x62) {
+    int64_t newValue = (rxBuf[4] << 8) | rxBuf[5];
     static int64_t oldValue;
-    debugSpecial("Testing Current MPG\n");
+    debugSpecial("Front Torque = %d\n", newValue);
     if (oldValue != newValue) {
       oldValue = newValue;
       TFT_Rectangle_ILI9341.fillRect(145, 150, 110, 20, TFT_LANDROVERGREEN);
@@ -1874,19 +1951,8 @@ void DisplayTestingData(ulong rxId, uint8_t len, uint8_t rxBuf[], uint8_t MCP251
     }
   }
 
-  // RDCM 23 Control module internal temperature C
-  else if (MCP2515number == 1 && rxId == 0x079D && rxBuf[0] == 0x04 && rxBuf[1] == 0x62 && rxBuf[2] == 0xD1 && rxBuf[3] == 0x16) {
-    byte newValue = rxBuf[4];
-    static int64_t oldValue;
-    debugSpecial("Control module internal temperature = %d\n", newValue);
-    if (oldValue != newValue) {
-      oldValue = newValue;
-      TFT_Rectangle_ILI9341.fillRect(145, 70, 110, 20, TFT_LANDROVERGREEN);
-      TFT_Rectangle_ILI9341.setTextColor(TFT_GREEN);
-      TFT_Rectangle_ILI9341.drawString(String(newValue) + "C", 200, 180);
-    }
-  }
 
+  // Line 9
   // RDCM 26 All wheel drive propulsion shaft torque 0.000 lbf ft
   else if (MCP2515number == 1 && rxId == 0x079D && rxBuf[0] == 0x05 && rxBuf[1] == 0x62 && rxBuf[2] == 0xD9 && rxBuf[3] == 0x30) {
     byte newValue = (rxBuf[4] << 8) | rxBuf[5];
@@ -1894,9 +1960,26 @@ void DisplayTestingData(ulong rxId, uint8_t len, uint8_t rxBuf[], uint8_t MCP251
     debugSpecial("Rear Torque = %d\n", newValue);
     if (oldValue != newValue) {
       oldValue = newValue;
-      TFT_Rectangle_ILI9341.fillRect(145, 70, 110, 20, TFT_LANDROVERGREEN);
+      TFT_Rectangle_ILI9341.fillRect(145, 170, 110, 20, TFT_LANDROVERGREEN);
       TFT_Rectangle_ILI9341.setTextColor(TFT_GREEN);
-      TFT_Rectangle_ILI9341.drawString(String(newValue) + "lbf ft", 200, 200);
+      TFT_Rectangle_ILI9341.drawString(String(newValue) + "lbf ft", 200, 180);
     }
   }
+
+
+  // Line 10
+  // RDCM 23 Control module internal temperature C
+  else if (MCP2515number == 1 && rxId == 0x079D && rxBuf[0] == 0x04 && rxBuf[1] == 0x62 && rxBuf[2] == 0xD1 && rxBuf[3] == 0x16) {
+    int8_t newValue = rxBuf[4];
+    static int64_t oldValue;
+    debugSpecial("Control module internal temperature = %d\n", newValue);
+    if (oldValue != newValue) {
+      oldValue = newValue;
+      TFT_Rectangle_ILI9341.fillRect(145, 190, 110, 20, TFT_LANDROVERGREEN);
+      TFT_Rectangle_ILI9341.setTextColor(TFT_GREEN);
+      TFT_Rectangle_ILI9341.drawString(String(newValue) + "C", 200, 200);
+    }
+  }
+
+
 }

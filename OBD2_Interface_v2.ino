@@ -92,7 +92,6 @@ TFT_eSPI_Keyboard Keyboard(TFT_Rectangle_ILI9341);  // Pass the TFT_eSPI instanc
 #include <SPI.h>
 // include the arduino-ESP32 core HardwareSerial library which is used for the SD Card Writer
 #include <HardwareSerial.h>
-//
 
 // Connections to the ESP32-S3 Follow:
 /*
@@ -139,6 +138,9 @@ TFT_eSPI_Keyboard Keyboard(TFT_Rectangle_ILI9341);  // Pass the TFT_eSPI instanc
   GND = GND
   VCC = 3.3v
 
+  Stop Button
+  GND = GND
+  Botton = 21
 */
 
 
@@ -215,6 +217,7 @@ const auto    SD_PORT_HARDWARE_SERIAL_NUMBER = 1;                     // The Ope
 const auto    SD_CARD_ESP32_S3_TX_PIN = 9;                            // The OpenLager Rx pin will be connected to this ESP32-S3 Tx pin
 const auto    CAN_BUS_0_CS_PIN = 14;                                  // The CS pin of the MCP2515 (High Speed CAN Bus 500kbps) will be connected to this ESP32-S3 pin
 const auto    CAN_BUS_1_CS_PIN = 10;                                  // The CS pin of the MCP2515 (Medium Speed CAN Bus 125kbps) will be connected to this ESP32-S3 pin
+const auto    STOP_BUTTON_PIN = 21;                                   // Physical Button to stop outputs (touch causes delays and loss of data)
 const auto    TFT_LANDROVERGREEN = 12832;                             // A Land Rover Green RBG colour
 const auto    TFT_Rectangle_ILI9341_LEDPIN = 39;                      // The ILI9341 display LED PIN will be connected to this ESP32-S3 pin
 const auto    CALIBRATION_FILE = "/TouchCalData1";                    // This is the file name used to store the touch display calibration data, must start with /
@@ -393,6 +396,8 @@ void setup() {
   if (versionMessageBoxRequired) {
     MessageBox("WARNING", "To ensure full compatibility use ESP32 Arduino Core v2.0.17\n\n*!* USE WITH CAUTION *!*", BTN_OK);
   }
+
+  pinMode(STOP_BUTTON_PIN, INPUT_PULLUP);
 }
 
 
@@ -526,36 +531,23 @@ void StartReadingCanBus() {
     break;
   }
 
-  // Create a STOP button to exit
-  TFT_Rectangle_ILI9341.setFreeFont(&MENU_FONT);                      // Set the normal button font
-  TFT_eSPI_Button btnMenu[1];                                         // Maximum 1 button on this display
-  const char* btnText[] = { "STOP" };                                 // Maximum 1 button on this display
-  char handler[1] = "";
-  uint16_t xButtonWidth = TFT_Rectangle_ILI9341.textWidth("A") * 5;
-  uint16_t yButtonHeight = TFT_Rectangle_ILI9341.fontHeight() * 1.2;
-  uint16_t xButtonMiddle = TFT_Rectangle_ILI9341.width() - (xButtonWidth / 2);
-  uint16_t yButtonMiddle = TFT_Rectangle_ILI9341.height() - (yButtonHeight / 2);
-                     
-  btnMenu[0].initButton(&TFT_Rectangle_ILI9341,
-    xButtonMiddle,
-    yButtonMiddle,
-    xButtonWidth,
-    yButtonHeight,
-    TFT_YELLOW, TFT_BLUE, TFT_YELLOW, handler, 1);                    // initButton limits the amount of text drawn, draw text in the drawButton() function
-  btnMenu[0].drawButton(false, btnText[0]);                           // Specifiy the text for the button because initButton will not display the full text length
-  btnMenu[0].press(false);                                            // Because I am reusing buttons it is important to tell the button it is NOT pressed
+  uint32_t CanOverFlowTimer = millis();
+  uint32_t Can1OverflowErrors = 0;
+  uint32_t Can2OverflowErrors = 0;
 
+  // Ensure the OverFlow Errors are cleared before we start
+  CANBusOverFlowError(mcp2515_1);
+  CANBusOverFlowError(mcp2515_2);
 
-  bool stopBtnError = true;
-  uint32_t stopBtnTimer = millis();
-  uint32_t CAN1OverflowErrors = 0;
-  uint32_t CAN2OverflowErrors = 0;
   while (true) {
+    // Check the stop button
+    if (digitalRead(STOP_BUTTON_PIN) == LOW) return;
+    
     // Check the 500kbps bus as priority over 125kbps because 500kbps is faster
     // and the buffers fill significantly more quickly
     if (CANBusCheckRecieved(mcp2515_1) && ((interfaceNumber & CAN1) || (interfaceNumber & CANBOTH))) {
       // Check for overflow errors, and clear them if necessary.
-      if (CANBusOverFlowError(mcp2515_1)) CAN1OverflowErrors++;
+      if (CANBusOverFlowError(mcp2515_1)) Can1OverflowErrors++;
       if (CANBusReadCANData(mcp2515_1)) {
         debugLoop("mcp2515_1 read");
         CANFrameProcessing(1);
@@ -564,7 +556,7 @@ void StartReadingCanBus() {
     // only check the 125kbps if there any no 500kbps messages in the MCP2515 buffers
     else if (CANBusCheckRecieved(mcp2515_2) && ((interfaceNumber & CAN2) || (interfaceNumber & CANBOTH))) {
       // Check for overflow errors, and clear them if necessary.
-      if (CANBusOverFlowError(mcp2515_2)) CAN2OverflowErrors++;
+      if (CANBusOverFlowError(mcp2515_2)) Can2OverflowErrors++;
       if (CANBusReadCANData(mcp2515_2)) {
         debugLoop("mcp2515_2 read");
         CANFrameProcessing(2);
@@ -574,7 +566,7 @@ void StartReadingCanBus() {
     //// Check the 125kbps bus as priority over 500kbps because 125kbps is slower so it is much quicker to clear the buffer
     //if (CANBusCheckRecieved(mcp2515_2) && ((interfaceNumber & CAN2) || (interfaceNumber & CANBOTH))) {
     //  // Check for overflow errors, and clear them if necessary.
-    //  if (CANBusOverFlowError(mcp2515_2)) CAN2OverflowErrors++;
+    //  if (CANBusOverFlowError(mcp2515_2)) Can2OverflowErrors++;
     //  if (CANBusReadCANData(mcp2515_2)) {
     //    debugLoop("mcp2515_2 read");
     //    CANFrameProcessing(2);
@@ -583,44 +575,24 @@ void StartReadingCanBus() {
     //// only check the 500kbps if there any no 125kbps messages in the MCP2515 buffers
     //else if (CANBusCheckRecieved(mcp2515_1) && ((interfaceNumber & CAN1) || (interfaceNumber & CANBOTH))) {
     //  // Check for overflow errors, and clear them if necessary.
-    //  if (CANBusOverFlowError(mcp2515_1)) CAN1OverflowErrors++;
+    //  if (CANBusOverFlowError(mcp2515_1)) Can1OverflowErrors++;
     //  if (CANBusReadCANData(mcp2515_1)) {
     //    debugLoop("mcp2515_1 read");
     //    CANFrameProcessing(1);
     //  }
     //}
-    else {
-      // If no CAN Bus data use the time to check the STOP Button
-      stopBtnTimer -= 500;                                            // Force STOP button to be read while we have a gap in data
-      stopBtnError = false;                                           // stopBtnTimer was called correctly
-    }
-    // In the case where the ESP32 is struggling to keep up with the incoming CAN Frames
-    // it is possible that the above else is never executed.
-    // Therefore every 0.5 seconds we force a check of the STOP button
-    if (millis() - stopBtnTimer > 1000) {
-      // Leverage this process to update the overflow counters
+
+    // monitor the over flow errors
+    if (millis() - CanOverFlowTimer > 1000) {
+      CanOverFlowTimer = millis();
+
       uint8_t yOffset = 135;
       TFT_Rectangle_ILI9341.fillRect(145, yOffset, 155, 20, TFT_LANDROVERGREEN);
       TFT_Rectangle_ILI9341.setTextColor(TFT_GREEN);
-      TFT_Rectangle_ILI9341.drawString(String(CAN1OverflowErrors), 195, yOffset + 10);
+      TFT_Rectangle_ILI9341.drawString(String(Can1OverflowErrors), 195, yOffset + 10);
       TFT_Rectangle_ILI9341.fillRect(145, yOffset + 20, 155, 20, TFT_LANDROVERGREEN);
       TFT_Rectangle_ILI9341.setTextColor(TFT_GREEN);
-      TFT_Rectangle_ILI9341.drawString(String(CAN2OverflowErrors), 195, yOffset + 30);
-      if (stopBtnError) {
-        TFT_Rectangle_ILI9341.setTextColor(TFT_RED, TFT_YELLOW, true);
-        TFT_Rectangle_ILI9341.setTextDatum(TL_DATUM);
-        TFT_Rectangle_ILI9341.drawString(String(" *!* Possible Lost CAN Frames *!* "), 30, 218, 2);
-        TFT_Rectangle_ILI9341.setTextColor(TFT_WHITE, TFT_LANDROVERGREEN, true);
-        TFT_Rectangle_ILI9341.setTextDatum(MC_DATUM);
-      }
-      stopBtnError = true;
-
-      uint8_t result = ProcessButtons(btnMenu, btnText, DISPLAY_BUTTON, 1, BTN_STOP, false);
-      stopBtnTimer = millis();                                        // Reset the STOP button timer
-
-      debugLoop("MessageBox result = %d (zero-based indexing)", result);
-
-      if (result == BTN_STOP) return;
+      TFT_Rectangle_ILI9341.drawString(String(Can2OverflowErrors), 195, yOffset + 30);
     }
   }
 }

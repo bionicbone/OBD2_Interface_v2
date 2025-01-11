@@ -544,6 +544,22 @@ void StartReadingCanBus() {
     // Check the 500kbps bus as priority over 125kbps because 500kbps is faster
     // and the buffers fill significantly more quickly
     if (CANBusCheckRecieved(mcp2515_1) && ((interfaceNumber & CAN1) || (interfaceNumber & CANBOTH))) {
+      // Check for Receive Overflow Errors
+      uint8_t errorFlags = mcp2515_1.getErrorFlags();
+      if ((errorFlags & (1 << 6)) || (errorFlags & (1 << 7))) {
+        //Serial.printf("mcp2515_1 Overflow Error Flags Detected\n");
+        TFT_Rectangle_ILI9341.fillRect(0, 0, 10, 10, TFT_RED);
+        mcp2515_1.clearRXnOVR();
+        errorFlags = mcp2515_1.getErrorFlags();
+        if ((errorFlags & (1 << 6)) || (errorFlags & (1 << 7))) {
+          //Serial.printf("mcp2515_1 Still in Overflow State\n");
+          TFT_Rectangle_ILI9341.fillRect(0, 0, 10, 10, TFT_BLUE);
+        }
+        else {
+          //Serial.printf("mcp2515_1 Cleared Overflow\n");
+          TFT_Rectangle_ILI9341.fillRect(0, 0, 10, 10, TFT_LANDROVERGREEN);
+        }
+      }
       if (CANBusReadCANData(mcp2515_1)) {
         debugLoop("mcp2515_1 read");
         CANFrameProcessing(1);
@@ -551,6 +567,22 @@ void StartReadingCanBus() {
     }
     // only check the 125kbps if there any no 500kbps messages in the MCP2515 buffers
     else if (CANBusCheckRecieved(mcp2515_2) && ((interfaceNumber & CAN2) || (interfaceNumber & CANBOTH))) {
+      // Check for Receive Overflow Errors
+      uint8_t errorFlags = mcp2515_2.getErrorFlags();
+      if ((errorFlags & (1 << 6)) || (errorFlags & (1 << 7))) {
+        //Serial.printf("mcp2515_2 Overflow Error Flags Detected\n");
+        TFT_Rectangle_ILI9341.fillRect(20, 0, 10, 10, TFT_RED);
+        mcp2515_2.clearRXnOVR();
+        errorFlags = mcp2515_2.getErrorFlags();
+        if ((errorFlags & (1 << 6)) || (errorFlags & (1 << 7))) {
+          //Serial.printf("mcp2515_2 Still in Overflow State\n");
+          TFT_Rectangle_ILI9341.fillRect(20, 0, 10, 10, TFT_BLUE);
+        }
+        else {
+          //Serial.printf("mcp2515_2 Cleared Overflow\n");
+          TFT_Rectangle_ILI9341.fillRect(20, 0, 10, 10, TFT_LANDROVERGREEN);
+        }
+      }
       if (CANBusReadCANData(mcp2515_2)) {
         debugLoop("mcp2515_2 read");
         CANFrameProcessing(2);

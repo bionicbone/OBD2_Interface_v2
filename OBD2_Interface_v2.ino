@@ -583,7 +583,7 @@ void StartReadingCanBus() {
     //}
 
     // monitor the over flow errors
-    if (millis() - CanOverFlowTimer > 1000) {
+    if ((millis() - CanOverFlowTimer > 1000) && outputFormat <= OUTPUT_SD_CARD_SAVVYCAN) {
       CanOverFlowTimer = millis();
 
       uint8_t yOffset = 135;
@@ -1868,112 +1868,120 @@ void DisplayTestingData(ulong rxId, uint8_t len, uint8_t rxBuf[], uint8_t MCP251
   // Line 1
   // BCM 292 Analogue input 11
   if (MCP2515number == 1 && rxId == 0x072E && rxBuf[0] == 0x07 && rxBuf[1] == 0x62 && rxBuf[2] == 0xD9 && rxBuf[3] == 0x11) {
+    byte testDataLineNumber = 1;
     float newValue = ((rxBuf[4] << 8) | rxBuf[5]) * 0.01;
     static float oldValue;
     debugSpecial("Battery Voltage = %f\n", newValue);
     if (oldValue != newValue) {
       oldValue = newValue;
-      TFT_Rectangle_ILI9341.fillRect(145, 10, 110, 20, TFT_LANDROVERGREEN);
+      TFT_Rectangle_ILI9341.fillRect(145, 20 * testDataLineNumber - 10, 110, 20, TFT_LANDROVERGREEN);
       TFT_Rectangle_ILI9341.setTextColor(TFT_GREEN);
-      TFT_Rectangle_ILI9341.drawString(String(newValue) + "V", 200, 20);
+      TFT_Rectangle_ILI9341.drawString(String(newValue) + "V", 200, 20 * testDataLineNumber);
     }
   }
 
   // Line 2
   // Unused
   else if (MCP2515number == 1 && rxId == 0x0000) {
+    byte testDataLineNumber = 2;
     byte newValue = 0; //rxBuf[4];
     static byte oldValue;
     debugSpecial("Test Line 2\n", newValue);
     if (oldValue != newValue) {
       oldValue = newValue;
-      TFT_Rectangle_ILI9341.fillRect(145, 50, 110, 20, TFT_LANDROVERGREEN);
+      TFT_Rectangle_ILI9341.fillRect(145, 20 * testDataLineNumber - 10, 110, 20, TFT_LANDROVERGREEN);
       TFT_Rectangle_ILI9341.setTextColor(TFT_GREEN);
-      TFT_Rectangle_ILI9341.drawString(String(newValue) + "%", 200, 60);
+      TFT_Rectangle_ILI9341.drawString(String(newValue) + "", 200, 20 * testDataLineNumber);
     }
   }
 
   // Line 3
   // BCM 141 Vehicle battery state of charge
   else if (MCP2515number == 1 && rxId == 0x072E && rxBuf[0] == 0x04 && rxBuf[1] == 0x62 && rxBuf[2] == 0x40 && rxBuf[3] == 0x28) {
+    byte testDataLineNumber = 3;
     byte newValue = rxBuf[4];
     static byte oldValue;
     debugSpecial("Battery PID SoC = %d\n", newValue);
     if (oldValue != newValue) {
       oldValue = newValue;
-      TFT_Rectangle_ILI9341.fillRect(145, 50, 110, 20, TFT_LANDROVERGREEN);
+      TFT_Rectangle_ILI9341.fillRect(145, 20 * testDataLineNumber - 10, 110, 20, TFT_LANDROVERGREEN);
       TFT_Rectangle_ILI9341.setTextColor(TFT_GREEN);
-      TFT_Rectangle_ILI9341.drawString(String(newValue) + "%", 200, 60);
+      TFT_Rectangle_ILI9341.drawString(String(newValue) + "%", 200, 20 * testDataLineNumber);
     }
   }
 
   // Line 4
   // BCM 218 Power status time data capture - PID 4028: Vehicle battery state of charge
   else if (MCP2515number == 1 && rxId == 0x072E && rxBuf[0] == 0x22 && rxBuf[1] == 0x00 && rxBuf[2] == 0x10 && rxBuf[3] == 0x01) {
+    byte testDataLineNumber = 4;
     byte newValue = rxBuf[5];
     static byte oldValue;
     debugSpecial("Battery PID SoC = %d\n", newValue);
     if (oldValue != newValue) {
       oldValue = newValue;
-      TFT_Rectangle_ILI9341.fillRect(145, 70, 110, 20, TFT_LANDROVERGREEN);
+      TFT_Rectangle_ILI9341.fillRect(145, 20 * testDataLineNumber - 10, 110, 20, TFT_LANDROVERGREEN);
       TFT_Rectangle_ILI9341.setTextColor(TFT_GREEN);
-      TFT_Rectangle_ILI9341.drawString(String(newValue) + "%", 200, 80);
+      TFT_Rectangle_ILI9341.drawString(String(newValue) + "%", 200, 20 * testDataLineNumber);
     }
   }
 
   // Line 5
   // Unused
   else if (MCP2515number == 2 && rxId == 0x0000) {
+    byte testDataLineNumber = 5;
     int64_t newValue = 0; // example (rxBuf[3] << 8) | rxBuf[4];
     static int64_t oldValue;
     debugSpecial("Test Line 5\n");
     if (oldValue != newValue) {
       oldValue = newValue;
-      TFT_Rectangle_ILI9341.fillRect(145, 90, 110, 20, TFT_LANDROVERGREEN);
+      TFT_Rectangle_ILI9341.fillRect(145, 20 * testDataLineNumber - 10, 110, 20, TFT_LANDROVERGREEN);
       TFT_Rectangle_ILI9341.setTextColor(TFT_GREEN);
-      TFT_Rectangle_ILI9341.drawString(String(newValue), 200, 100);
+      TFT_Rectangle_ILI9341.drawString(String(newValue), 200, 20 * testDataLineNumber);
     }
   }
 
   // Line 6
   // Unused
   else if (MCP2515number == 2 && rxId == 0x0000) {
+    byte testDataLineNumber = 6;
     int64_t newValue = 0;
     static int64_t oldValue;
     debugSpecial("Test Line 6\n");
     if (oldValue != newValue) {
       oldValue = newValue;
-      TFT_Rectangle_ILI9341.fillRect(145, 110, 110, 20, TFT_LANDROVERGREEN);
+      TFT_Rectangle_ILI9341.fillRect(145, 20 * testDataLineNumber - 10, 110, 20, TFT_LANDROVERGREEN);
       TFT_Rectangle_ILI9341.setTextColor(TFT_GREEN);
-      TFT_Rectangle_ILI9341.drawString(String(newValue), 200, 120);
+      TFT_Rectangle_ILI9341.drawString(String(newValue), 200, 20 * testDataLineNumber);
     }
   }
 
   // Line 7
   // Unused
   else if (MCP2515number == 1 && rxId == 0x0000) {
+    byte testDataLineNumber = 7;
     int64_t newValue = 0;
     static int64_t oldValue;
     debugSpecial("Test Line 7\n");
     if (oldValue != newValue) {
       oldValue = newValue;
-      TFT_Rectangle_ILI9341.fillRect(145, 130, 110, 20, TFT_LANDROVERGREEN);
+      TFT_Rectangle_ILI9341.fillRect(145, 20 * testDataLineNumber - 10, 110, 20, TFT_LANDROVERGREEN);
       TFT_Rectangle_ILI9341.setTextColor(TFT_GREEN);
-      TFT_Rectangle_ILI9341.drawString(String(newValue), 200, 140);
+      TFT_Rectangle_ILI9341.drawString(String(newValue), 200, 20 * testDataLineNumber);
     }
   }
 
   // Line 8
   // RDCM 29 Propulsion torque  lbf ft
   else if (MCP2515number == 1 && rxId == 0x079D && rxBuf[0] == 0x05 && rxBuf[1] == 0x62 && rxBuf[2] == 0xD9 && rxBuf[3] == 0x62) {
-    int64_t newValue = (rxBuf[4] << 8) | rxBuf[5];
+  byte testDataLineNumber = 8;
+  int64_t newValue = (rxBuf[4] << 8) | rxBuf[5];
     static int64_t oldValue;
     debugSpecial("Front Torque = %d\n", newValue);
     if (oldValue != newValue) {
       oldValue = newValue;
-      TFT_Rectangle_ILI9341.fillRect(145, 150, 110, 20, TFT_LANDROVERGREEN);
+      TFT_Rectangle_ILI9341.fillRect(145, 20 * testDataLineNumber - 10, 110, 20, TFT_LANDROVERGREEN);
       TFT_Rectangle_ILI9341.setTextColor(TFT_GREEN);
-      TFT_Rectangle_ILI9341.drawString(String(newValue), 200, 160);
+      TFT_Rectangle_ILI9341.drawString(String(newValue) + " lbf ft", 200, 20 * testDataLineNumber);
     }
   }
 
@@ -1981,14 +1989,15 @@ void DisplayTestingData(ulong rxId, uint8_t len, uint8_t rxBuf[], uint8_t MCP251
   // Line 9
   // RDCM 26 All wheel drive propulsion shaft torque 0.000 lbf ft
   else if (MCP2515number == 1 && rxId == 0x079D && rxBuf[0] == 0x05 && rxBuf[1] == 0x62 && rxBuf[2] == 0xD9 && rxBuf[3] == 0x30) {
-    byte newValue = (rxBuf[4] << 8) | rxBuf[5];
+  byte testDataLineNumber = 9;
+  byte newValue = (rxBuf[4] << 8) | rxBuf[5];
     static byte oldValue;
     debugSpecial("Rear Torque = %d\n", newValue);
     if (oldValue != newValue) {
       oldValue = newValue;
-      TFT_Rectangle_ILI9341.fillRect(145, 170, 110, 20, TFT_LANDROVERGREEN);
+      TFT_Rectangle_ILI9341.fillRect(145, 20 * testDataLineNumber - 10, 110, 20, TFT_LANDROVERGREEN);
       TFT_Rectangle_ILI9341.setTextColor(TFT_GREEN);
-      TFT_Rectangle_ILI9341.drawString(String(newValue) + "lbf ft", 200, 180);
+      TFT_Rectangle_ILI9341.drawString(String(newValue) + " lbf ft", 200, 20 * testDataLineNumber);
     }
   }
 
@@ -1996,14 +2005,15 @@ void DisplayTestingData(ulong rxId, uint8_t len, uint8_t rxBuf[], uint8_t MCP251
   // Line 10
   // RDCM 23 Control module internal temperature C
   else if (MCP2515number == 1 && rxId == 0x079D && rxBuf[0] == 0x04 && rxBuf[1] == 0x62 && rxBuf[2] == 0xD1 && rxBuf[3] == 0x16) {
-    int8_t newValue = rxBuf[4];
+  byte testDataLineNumber = 10;
+  int8_t newValue = rxBuf[4];
     static int64_t oldValue;
     debugSpecial("Control module internal temperature = %d\n", newValue);
     if (oldValue != newValue) {
       oldValue = newValue;
-      TFT_Rectangle_ILI9341.fillRect(145, 190, 110, 20, TFT_LANDROVERGREEN);
+      TFT_Rectangle_ILI9341.fillRect(145, 20 * testDataLineNumber - 10, 110, 20, TFT_LANDROVERGREEN);
       TFT_Rectangle_ILI9341.setTextColor(TFT_GREEN);
-      TFT_Rectangle_ILI9341.drawString(String(newValue) + "C", 200, 200);
+      TFT_Rectangle_ILI9341.drawString(String(newValue) + "C", 200, 20 * testDataLineNumber);
     }
   }
 

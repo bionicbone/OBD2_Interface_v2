@@ -451,6 +451,8 @@ void StartReadingCanBus() {
     TFT_Rectangle_ILI9341.drawCentreString("Connect PC with CanDrive running to see", 160, 65, 2);
     TFT_Rectangle_ILI9341.drawCentreString("and filter the Live CAN BUS Data.", 160, 85, 2);
     TFT_Rectangle_ILI9341.drawCentreString("Press STOP to end the output.", 160, 105, 2);
+    TFT_Rectangle_ILI9341.drawString("CAN 1 Overflows:", 70, 145);
+    TFT_Rectangle_ILI9341.drawString("CAN 2 Overflows:", 70, 165);
     TFT_Rectangle_ILI9341.setTextColor(TFT_BLACK);
     break;
 
@@ -463,6 +465,8 @@ void StartReadingCanBus() {
     TFT_Rectangle_ILI9341.drawCentreString("to the USB Port at 2,000,000 baud.", 160, 45, 2);
     TFT_Rectangle_ILI9341.drawCentreString("Connect PC with suitable recording program.", 160, 65, 2);
     TFT_Rectangle_ILI9341.drawCentreString("Press STOP to end the output.", 160, 85, 2);
+    TFT_Rectangle_ILI9341.drawString("CAN 1 Overflows:", 70, 145);
+    TFT_Rectangle_ILI9341.drawString("CAN 2 Overflows:", 70, 165);
     TFT_Rectangle_ILI9341.setTextColor(TFT_BLACK);
     break;
 
@@ -483,6 +487,10 @@ void StartReadingCanBus() {
       TFT_Rectangle_ILI9341.drawString("    MS 0x490D3:", 70, 185);
       TFT_Rectangle_ILI9341.drawString("    HS Car Age:", 70, 205);
       TFT_Rectangle_ILI9341.drawString("    HS 0x3D3D1:", 70, 225);
+    }
+    else {
+      TFT_Rectangle_ILI9341.drawString("CAN 1 Overflows:", 70, 145);
+      TFT_Rectangle_ILI9341.drawString("CAN 2 Overflows:", 70, 165);
     }
     TFT_Rectangle_ILI9341.setTextColor(TFT_BLACK);
     break;
@@ -540,26 +548,14 @@ void StartReadingCanBus() {
 
   bool stopBtnError = true;
   uint32_t stopBtnTimer = millis();
+  uint32_t CAN1OverflowErrors = 0;
+  uint32_t CAN2OverflowErrors = 0;
   while (true) {
     // Check the 500kbps bus as priority over 125kbps because 500kbps is faster
     // and the buffers fill significantly more quickly
     if (CANBusCheckRecieved(mcp2515_1) && ((interfaceNumber & CAN1) || (interfaceNumber & CANBOTH))) {
-      // Check for Receive Overflow Errors
-      uint8_t errorFlags = mcp2515_1.getErrorFlags();
-      if ((errorFlags & (1 << 6)) || (errorFlags & (1 << 7))) {
-        //Serial.printf("mcp2515_1 Overflow Error Flags Detected\n");
-        TFT_Rectangle_ILI9341.fillRect(0, 0, 10, 10, TFT_RED);
-        mcp2515_1.clearRXnOVR();
-        errorFlags = mcp2515_1.getErrorFlags();
-        if ((errorFlags & (1 << 6)) || (errorFlags & (1 << 7))) {
-          //Serial.printf("mcp2515_1 Still in Overflow State\n");
-          TFT_Rectangle_ILI9341.fillRect(0, 0, 10, 10, TFT_BLUE);
-        }
-        else {
-          //Serial.printf("mcp2515_1 Cleared Overflow\n");
-          TFT_Rectangle_ILI9341.fillRect(0, 0, 10, 10, TFT_LANDROVERGREEN);
-        }
-      }
+      // Check for overflow errors, and clear them if necessary.
+      if (CANBusOverFlowError(mcp2515_1)) CAN1OverflowErrors++;
       if (CANBusReadCANData(mcp2515_1)) {
         debugLoop("mcp2515_1 read");
         CANFrameProcessing(1);
@@ -567,27 +563,32 @@ void StartReadingCanBus() {
     }
     // only check the 125kbps if there any no 500kbps messages in the MCP2515 buffers
     else if (CANBusCheckRecieved(mcp2515_2) && ((interfaceNumber & CAN2) || (interfaceNumber & CANBOTH))) {
-      // Check for Receive Overflow Errors
-      uint8_t errorFlags = mcp2515_2.getErrorFlags();
-      if ((errorFlags & (1 << 6)) || (errorFlags & (1 << 7))) {
-        //Serial.printf("mcp2515_2 Overflow Error Flags Detected\n");
-        TFT_Rectangle_ILI9341.fillRect(20, 0, 10, 10, TFT_RED);
-        mcp2515_2.clearRXnOVR();
-        errorFlags = mcp2515_2.getErrorFlags();
-        if ((errorFlags & (1 << 6)) || (errorFlags & (1 << 7))) {
-          //Serial.printf("mcp2515_2 Still in Overflow State\n");
-          TFT_Rectangle_ILI9341.fillRect(20, 0, 10, 10, TFT_BLUE);
-        }
-        else {
-          //Serial.printf("mcp2515_2 Cleared Overflow\n");
-          TFT_Rectangle_ILI9341.fillRect(20, 0, 10, 10, TFT_LANDROVERGREEN);
-        }
-      }
+      // Check for overflow errors, and clear them if necessary.
+      if (CANBusOverFlowError(mcp2515_2)) CAN2OverflowErrors++;
       if (CANBusReadCANData(mcp2515_2)) {
         debugLoop("mcp2515_2 read");
         CANFrameProcessing(2);
       }
     }
+    
+    //// Check the 125kbps bus as priority over 500kbps because 125kbps is slower so it is much quicker to clear the buffer
+    //if (CANBusCheckRecieved(mcp2515_2) && ((interfaceNumber & CAN2) || (interfaceNumber & CANBOTH))) {
+    //  // Check for overflow errors, and clear them if necessary.
+    //  if (CANBusOverFlowError(mcp2515_2)) CAN2OverflowErrors++;
+    //  if (CANBusReadCANData(mcp2515_2)) {
+    //    debugLoop("mcp2515_2 read");
+    //    CANFrameProcessing(2);
+    //  }
+    //}
+    //// only check the 500kbps if there any no 125kbps messages in the MCP2515 buffers
+    //else if (CANBusCheckRecieved(mcp2515_1) && ((interfaceNumber & CAN1) || (interfaceNumber & CANBOTH))) {
+    //  // Check for overflow errors, and clear them if necessary.
+    //  if (CANBusOverFlowError(mcp2515_1)) CAN1OverflowErrors++;
+    //  if (CANBusReadCANData(mcp2515_1)) {
+    //    debugLoop("mcp2515_1 read");
+    //    CANFrameProcessing(1);
+    //  }
+    //}
     else {
       // If no CAN Bus data use the time to check the STOP Button
       stopBtnTimer -= 500;                                            // Force STOP button to be read while we have a gap in data
@@ -596,7 +597,15 @@ void StartReadingCanBus() {
     // In the case where the ESP32 is struggling to keep up with the incoming CAN Frames
     // it is possible that the above else is never executed.
     // Therefore every 0.5 seconds we force a check of the STOP button
-    if (millis() - stopBtnTimer > 500) {
+    if (millis() - stopBtnTimer > 1000) {
+      // Leverage this process to update the overflow counters
+      uint8_t yOffset = 135;
+      TFT_Rectangle_ILI9341.fillRect(145, yOffset, 155, 20, TFT_LANDROVERGREEN);
+      TFT_Rectangle_ILI9341.setTextColor(TFT_GREEN);
+      TFT_Rectangle_ILI9341.drawString(String(CAN1OverflowErrors), 195, yOffset + 10);
+      TFT_Rectangle_ILI9341.fillRect(145, yOffset + 20, 155, 20, TFT_LANDROVERGREEN);
+      TFT_Rectangle_ILI9341.setTextColor(TFT_GREEN);
+      TFT_Rectangle_ILI9341.drawString(String(CAN2OverflowErrors), 195, yOffset + 30);
       if (stopBtnError) {
         TFT_Rectangle_ILI9341.setTextColor(TFT_RED, TFT_YELLOW, true);
         TFT_Rectangle_ILI9341.setTextDatum(TL_DATUM);
@@ -810,6 +819,19 @@ bool CANBusSendCANData(MCP2515 CANBusModule) {
 #else
   return false;
 #endif
+}
+
+// Detect and Clear Receive Overflow Errors
+bool CANBusOverFlowError(MCP2515 CANBusModule) {
+  // Check for Receive Overflow Errors
+  uint8_t errorFlags = CANBusModule.getErrorFlags();
+  bool ret = false;
+  if ((errorFlags & (1 << 6)) || (errorFlags & (1 << 7))) {
+    //Overflow Error Flags Detected
+    CANBusModule.clearRXnOVR();
+    ret = true;
+  }
+  return ret;
 }
 
 

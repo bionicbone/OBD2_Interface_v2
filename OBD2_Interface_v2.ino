@@ -1699,33 +1699,57 @@ void DisplayTestingData(ulong rxId, uint8_t len, uint8_t rxBuf[], uint8_t MCP251
   */
   if (millis() - timerMillis > 100) {
     timerMillis = millis();
-    if (sendMessageCounter++ > 9) sendMessageCounter = 0;
-    
-//    // Request BCM 292 Analogue input 11
-//    if (sendMessageCounter == 0) {
-//      debugSpecial("%ld Send 0x0726 Battery Voltage Request\n", millis());
-//      // This seems to need two calls
-//      frame.can_id = 0x756;
-//      frame.can_dlc = 0x08;
-//      frame.data[0] = 0x03;
-//      frame.data[1] = 0x22;
-//      frame.data[2] = 0xF1;
-//      frame.data[3] = 0x90;
-//      frame.data[4] = 0x00;
-//      frame.data[5] = 0x00;
-//      frame.data[6] = 0x00;
-//      frame.data[7] = 0x00;
-//      // Never use the direct call mcp2515_1.sendMassage(&frame)!!
-//#if ALLOW_SENDING_DATA_TO_CAN_BUS == 1
-//      CANBusSendCANData(mcp2515_1);
-//#endif
-//      
-//      frame.can_id = 0x726;
-//      frame.can_dlc = 0x08;
-//      frame.data[0] = 0x03;
-//      frame.data[1] = 0x22;
-//      frame.data[2] = 0xD9;
-//      frame.data[3] = 0x11;
+    if (sendMessageCounter++ > 10) sendMessageCounter = 1;
+
+    // sendMessageCounter will loop from 1 to 10 to match the output line numbers on the displayed data
+    // although sometimes you may want to request the same data several times per second in which case
+    // you will need to use an unused display line, for example send on 1, 4 and 7
+
+    // Request BCM 292 Analogue input 11
+    if (sendMessageCounter == 1) {
+      debugSpecial("%ld Send 0x0726 Battery Voltage Request\n", millis());
+      // This seems to need two calls
+      frame.can_id = 0x756;
+      frame.can_dlc = 0x08;
+      frame.data[0] = 0x03;
+      frame.data[1] = 0x22;
+      frame.data[2] = 0xF1;
+      frame.data[3] = 0x90;
+      frame.data[4] = 0x00;
+      frame.data[5] = 0x00;
+      frame.data[6] = 0x00;
+      frame.data[7] = 0x00;
+      // Never use the direct call mcp2515_1.sendMassage(&frame)!!
+#if ALLOW_SENDING_DATA_TO_CAN_BUS == 1
+      CANBusSendCANData(mcp2515_1);
+#endif
+
+      frame.can_id = 0x726;
+      frame.can_dlc = 0x08;
+      frame.data[0] = 0x03;
+      frame.data[1] = 0x22;
+      frame.data[2] = 0xD9;
+      frame.data[3] = 0x11;
+      frame.data[4] = 0x00;
+      frame.data[5] = 0x00;
+      frame.data[6] = 0x00;
+      frame.data[7] = 0x00;
+      // Never use the direct call mcp2515_1.sendMassage(&frame)!!
+#if ALLOW_SENDING_DATA_TO_CAN_BUS == 1
+      CANBusSendCANData(mcp2515_1);
+#endif
+    }
+
+
+//    // Unused
+//    else if (sendMessageCounter == 2) {
+//      debugSpecial("%ld Unused: 2\n", millis());
+//      frame.can_id = 0x000;
+//      frame.can_dlc = 0x00;
+//      frame.data[0] = 0x00;
+//      frame.data[1] = 0x00;
+//      frame.data[2] = 0x00;
+//      frame.data[3] = 0x00;
 //      frame.data[4] = 0x00;
 //      frame.data[5] = 0x00;
 //      frame.data[6] = 0x00;
@@ -1735,9 +1759,10 @@ void DisplayTestingData(ulong rxId, uint8_t len, uint8_t rxBuf[], uint8_t MCP251
 //      CANBusSendCANData(mcp2515_1);
 //#endif
 //    }
-   
+
+
     // Request BCM 141 Vehicle battery state of charge
-    if (sendMessageCounter == 2) {
+    else if (sendMessageCounter == 3) {
       debugSpecial("%ld Send 0x0726 Battery SoC Request\n", millis());
       frame.can_id = 0x726;
       frame.can_dlc = 0x08;
@@ -1755,8 +1780,9 @@ void DisplayTestingData(ulong rxId, uint8_t len, uint8_t rxBuf[], uint8_t MCP251
 #endif
     }
 
+
 //    // BCM 218 Power status time data capture - PID 4028: Vehicle battery state of charge
-//    else if (sendMessageCounter == 2) {
+//    else if (sendMessageCounter == 4) {
 //      debugSpecial("%ld Send 0x0726 PID Battery SoC Request\n", millis());
 //      // This seems to need two calls
 //      frame.can_id = 0x726;
@@ -1773,7 +1799,7 @@ void DisplayTestingData(ulong rxId, uint8_t len, uint8_t rxBuf[], uint8_t MCP251
 //#if ALLOW_SENDING_DATA_TO_CAN_BUS == 1
 //      CANBusSendCANData(mcp2515_1);
 //#endif
-//      
+//
 //      frame.can_id = 0x726;
 //      frame.can_dlc = 0x08;
 //      frame.data[0] = 0x03;
@@ -1790,15 +1816,56 @@ void DisplayTestingData(ulong rxId, uint8_t len, uint8_t rxBuf[], uint8_t MCP251
 //#endif
 //    }
 
-//    // RDCM 23 Control module internal temperature
-//    else if (sendMessageCounter == 3) {
-//      debugSpecial("%ld Send 0x0795 Control module internal temperature\n", millis());
-//      frame.can_id = 0x795;
-//      frame.can_dlc = 0x08;
-//      frame.data[0] = 0x03;
-//      frame.data[1] = 0x22;
-//      frame.data[2] = 0xD1;
-//      frame.data[3] = 0x16;
+
+//    // Unused
+//    else if (sendMessageCounter == 5) {
+//      debugSpecial("%ld Unused: 5\n", millis());
+//      frame.can_id = 0x000;
+//      frame.can_dlc = 0x00;
+//      frame.data[0] = 0x00;
+//      frame.data[1] = 0x00;
+//      frame.data[2] = 0x00;
+//      frame.data[3] = 0x00;
+//      frame.data[4] = 0x00;
+//      frame.data[5] = 0x00;
+//      frame.data[6] = 0x00;
+//      frame.data[7] = 0x00;
+//      // Never use the direct call mcp2515_1.sendMassage(&frame)!!
+//#if ALLOW_SENDING_DATA_TO_CAN_BUS == 1
+//      CANBusSendCANData(mcp2515_1);
+//#endif
+//    }
+//
+//
+//    // Unused
+//    else if (sendMessageCounter == 6) {
+//      debugSpecial("%ld Unused: 6\n", millis());
+//      frame.can_id = 0x000;
+//      frame.can_dlc = 0x00;
+//      frame.data[0] = 0x00;
+//      frame.data[1] = 0x00;
+//      frame.data[2] = 0x00;
+//      frame.data[3] = 0x00;
+//      frame.data[4] = 0x00;
+//      frame.data[5] = 0x00;
+//      frame.data[6] = 0x00;
+//      frame.data[7] = 0x00;
+//      // Never use the direct call mcp2515_1.sendMassage(&frame)!!
+//#if ALLOW_SENDING_DATA_TO_CAN_BUS == 1
+//      CANBusSendCANData(mcp2515_1);
+//#endif
+//    }
+//
+//
+//    // Unused
+//    else if (sendMessageCounter == 7) {
+//      debugSpecial("%ld Unused: 7\n", millis());
+//      frame.can_id = 0x000;
+//      frame.can_dlc = 0x00;
+//      frame.data[0] = 0x00;
+//      frame.data[1] = 0x00;
+//      frame.data[2] = 0x00;
+//      frame.data[3] = 0x00;
 //      frame.data[4] = 0x00;
 //      frame.data[5] = 0x00;
 //      frame.data[6] = 0x00;
@@ -1809,8 +1876,29 @@ void DisplayTestingData(ulong rxId, uint8_t len, uint8_t rxBuf[], uint8_t MCP251
 //#endif
 //    }
 
+
+    // RDCM 26 Propulsion shaft torque 0.000 lbf ft
+    else if (sendMessageCounter == 4 || sendMessageCounter == 8) {
+      debugSpecial("%ld Send 0x0795 Propulsion torque  lbf ft\n", millis());
+      frame.can_id = 0x795;
+      frame.can_dlc = 0x08;
+      frame.data[0] = 0x03;
+      frame.data[1] = 0x22;
+      frame.data[2] = 0xD9;
+      frame.data[3] = 0x62;
+      frame.data[4] = 0x00;
+      frame.data[5] = 0x00;
+      frame.data[6] = 0x00;
+      frame.data[7] = 0x00;
+      // Never use the direct call mcp2515_1.sendMassage(&frame)!!
+#if ALLOW_SENDING_DATA_TO_CAN_BUS == 1
+      CANBusSendCANData(mcp2515_1);
+#endif
+    }
+
+
     // RDCM 26 All wheel drive propulsion shaft torque 0.000 lbf ft
-    else if (sendMessageCounter == 5) {
+    else if (sendMessageCounter == 5 || sendMessageCounter == 9) {
       debugSpecial("%ld Send 0x0795 All wheel drive propulsion shaft torque\n", millis());
       frame.can_id = 0x795;
       frame.can_dlc = 0x08;
@@ -1828,22 +1916,23 @@ void DisplayTestingData(ulong rxId, uint8_t len, uint8_t rxBuf[], uint8_t MCP251
 #endif
     }
 
-    // RDCM 26 All wheel drive propulsion shaft torque 0.000 lbf ft
-    else if (sendMessageCounter == 9) {
-    debugSpecial("%ld Send 0x0795 Propulsion torque  lbf ft\n", millis());
-    frame.can_id = 0x795;
-    frame.can_dlc = 0x08;
-    frame.data[0] = 0x03;
-    frame.data[1] = 0x22;
-    frame.data[2] = 0xD9;
-    frame.data[3] = 0x62;
-    frame.data[4] = 0x00;
-    frame.data[5] = 0x00;
-    frame.data[6] = 0x00;
-    frame.data[7] = 0x00;
-    // Never use the direct call mcp2515_1.sendMassage(&frame)!!
+
+    // RDCM 23 Control module internal temperature
+    else if (sendMessageCounter == 10) {
+      debugSpecial("%ld Send 0x0795 Control module internal temperature\n", millis());
+      frame.can_id = 0x795;
+      frame.can_dlc = 0x08;
+      frame.data[0] = 0x03;
+      frame.data[1] = 0x22;
+      frame.data[2] = 0xD1;
+      frame.data[3] = 0x16;
+      frame.data[4] = 0x00;
+      frame.data[5] = 0x00;
+      frame.data[6] = 0x00;
+      frame.data[7] = 0x00;
+      // Never use the direct call mcp2515_1.sendMassage(&frame)!!
 #if ALLOW_SENDING_DATA_TO_CAN_BUS == 1
-    CANBusSendCANData(mcp2515_1);
+      CANBusSendCANData(mcp2515_1);
 #endif
     }
 

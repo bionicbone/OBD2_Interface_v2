@@ -456,8 +456,6 @@ void StartReadingCanBus() {
     TFT_Rectangle_ILI9341.drawCentreString("Connect PC with CanDrive running to see", 160, 65, 2);
     TFT_Rectangle_ILI9341.drawCentreString("and filter the Live CAN BUS Data.", 160, 85, 2);
     TFT_Rectangle_ILI9341.drawCentreString("Press STOP to end the output.", 160, 105, 2);
-    TFT_Rectangle_ILI9341.drawString("CAN 1 Overflows:", 70, 145);
-    TFT_Rectangle_ILI9341.drawString("CAN 2 Overflows:", 70, 165);
     TFT_Rectangle_ILI9341.setTextColor(TFT_BLACK);
     break;
 
@@ -470,8 +468,6 @@ void StartReadingCanBus() {
     TFT_Rectangle_ILI9341.drawCentreString("to the USB Port at 2,000,000 baud.", 160, 45, 2);
     TFT_Rectangle_ILI9341.drawCentreString("Connect PC with suitable recording program.", 160, 65, 2);
     TFT_Rectangle_ILI9341.drawCentreString("Press STOP to end the output.", 160, 85, 2);
-    TFT_Rectangle_ILI9341.drawString("CAN 1 Overflows:", 70, 145);
-    TFT_Rectangle_ILI9341.drawString("CAN 2 Overflows:", 70, 165);
     TFT_Rectangle_ILI9341.setTextColor(TFT_BLACK);
     break;
 
@@ -492,10 +488,6 @@ void StartReadingCanBus() {
       TFT_Rectangle_ILI9341.drawString("    MS 0x490D3:", 70, 185);
       TFT_Rectangle_ILI9341.drawString("    HS Car Age:", 70, 205);
       TFT_Rectangle_ILI9341.drawString("    HS 0x3D3D1:", 70, 225);
-    }
-    else {
-      TFT_Rectangle_ILI9341.drawString("CAN 1 Overflows:", 70, 145);
-      TFT_Rectangle_ILI9341.drawString("CAN 2 Overflows:", 70, 165);
     }
     TFT_Rectangle_ILI9341.setTextColor(TFT_BLACK);
     break;
@@ -531,7 +523,6 @@ void StartReadingCanBus() {
     break;
   }
 
-  uint32_t CanOverFlowTimer = millis();
   uint32_t Can1OverflowErrors = 0;
   uint32_t Can2OverflowErrors = 0;
 
@@ -541,7 +532,15 @@ void StartReadingCanBus() {
 
   while (true) {
     // Check the stop button
-    if (digitalRead(STOP_BUTTON_PIN) == LOW) return;
+    if (digitalRead(STOP_BUTTON_PIN) == LOW) { 
+      // Show a message box to report OverFlows "ONLY" if OverFlows occured.
+      if (Can1OverflowErrors > 0 || Can2OverflowErrors > 2) {
+        String helperString = "CAN Data was lost!\nCAN1 Overflows: " + String(Can1OverflowErrors) + "\nCAN2 Overflows: " + String(Can2OverflowErrors);
+        MessageBox("Receiving Overflows", helperString.c_str(), BTN_OK);
+      }
+      return; 
+    }
+
     
     // Check the 500kbps bus as priority over 125kbps because 500kbps is faster
     // and the buffers fill significantly more quickly
@@ -581,19 +580,6 @@ void StartReadingCanBus() {
     //    CANFrameProcessing(1);
     //  }
     //}
-
-    // monitor the over flow errors
-    if ((millis() - CanOverFlowTimer > 1000) && outputFormat <= OUTPUT_SD_CARD_SAVVYCAN) {
-      CanOverFlowTimer = millis();
-
-      uint8_t yOffset = 135;
-      TFT_Rectangle_ILI9341.fillRect(145, yOffset, 155, 20, TFT_LANDROVERGREEN);
-      TFT_Rectangle_ILI9341.setTextColor(TFT_GREEN);
-      TFT_Rectangle_ILI9341.drawString(String(Can1OverflowErrors), 195, yOffset + 10);
-      TFT_Rectangle_ILI9341.fillRect(145, yOffset + 20, 155, 20, TFT_LANDROVERGREEN);
-      TFT_Rectangle_ILI9341.setTextColor(TFT_GREEN);
-      TFT_Rectangle_ILI9341.drawString(String(Can2OverflowErrors), 195, yOffset + 30);
-    }
   }
 }
 

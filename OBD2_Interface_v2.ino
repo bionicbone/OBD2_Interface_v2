@@ -377,8 +377,8 @@ void setup() {
   SDCardStart(SD_CARD_ESP32_S3_TX_PIN);
 
   // Start the two CAN Bus, 500kbps for High Speed and 125kbps for the Medium Speed and both in ListenOnly Mode
-  CANBusStart(mcp2515_1, CAN_500KBPS, 0); 
-  CANBusStart(mcp2515_2, CAN_125KBPS, 0);
+  CANBusStart(mcp2515_1, CAN_500KBPS, 1); 
+  CANBusStart(mcp2515_2, CAN_125KBPS, 1);
 
   // TFT_eSPI runs on HSPI bus, see Setup42_ILI9341_ESP32.h for pin definitions and more information
   TFT_Rectangle_ILI9341.init();
@@ -443,6 +443,11 @@ void StartReadingCanBus() {
 
   // Reset the display
   ClearDisplay();
+
+  // Reset the uptimer for the logs
+  upTimer = micros();
+
+  uint16_t warning = 0;
 
   switch (outputFormat) {
   case OUTPUT_FORMAT_CANDRIVE:
@@ -517,6 +522,17 @@ void StartReadingCanBus() {
     TFT_Rectangle_ILI9341.drawString("   Rear Torque:", 70, 180);
     TFT_Rectangle_ILI9341.drawString("  Module Deg C:", 70, 200);
     interfaceNumber = CANBOTH;
+    // We probably want to send data so put into HS CAN into Normal Mode
+    
+#if ALLOW_SENDING_DATA_TO_CAN_BUS == 1
+    warning = MessageBox("WARNING", "AKN, ERROR signals & Data Request Frames will be sent to the car. Use with caution. Do you want to continue ?", BTN_YES + BTN_NO);
+    if (warning == BTN_NO) {
+      return;
+    }
+    CANbusSetNormalMode(mcp2515_1);
+#else
+    MessageBox("INFORMATION", "Sending data is deactivated, send data requests will not be sent. See GitHub repository.", BTN_OK);
+#endif
     break;
 
   default:
@@ -533,6 +549,8 @@ void StartReadingCanBus() {
   while (true) {
     // Check the stop button
     if (digitalRead(STOP_BUTTON_PIN) == LOW) { 
+      // Put back into ListenOnly Mode, it is the safest mode.
+      CANbusSetListenOnlyMode(mcp2515_1);
       // Show a message box to report OverFlows "ONLY" if OverFlows occured.
       if (Can1OverflowErrors > 0 || Can2OverflowErrors > 2) {
         String helperString = "CAN Data was lost!\nCAN1 Overflows: " + String(Can1OverflowErrors) + "\nCAN2 Overflows: " + String(Can2OverflowErrors);
@@ -728,7 +746,7 @@ void CANBusStart(MCP2515 CANBusModule, CAN_SPEED CANSpeed, uint8_t CANMode) {
   while (CANBusModule.reset() != MCP2515::ERROR_OK) { delay(500); }
   debugLoop("MCP2515 Reset Successful");
 
-  while (CANBusModule.setBitrate(CANSpeed) != MCP2515::ERROR_OK) { delay(500); }
+  while (CANBusModule.setBitrate(CANSpeed, MCP_8MHZ) != MCP2515::ERROR_OK) { delay(500); }
   debugLoop("MCP2515 BitRate Successful");
 
   if (CANMode == 0) {
@@ -1269,9 +1287,6 @@ uint16_t MessageBox(const char* title, const char* message, uint16_t options) {
 
   result = ProcessButtons(btnMenu, btnText, MESSAGE_BOX, menuButtons);
 
-  debugLoop("MessageBox result = %d (zero-based indexing)", result);
-
-
   // Clear the display and reset the program header
   ClearDisplay();
 
@@ -1294,6 +1309,8 @@ uint16_t MessageBox(const char* title, const char* message, uint16_t options) {
   else if (messageBtnText[result] == helper5) result = BTN_CANBOTH;
   else if (messageBtnText[result] == helper6) result = BTN_YES;
   else if (messageBtnText[result] == helper7) result = BTN_NO;
+
+  debugLoop("MessageBox result = %d (MESSAGE_BOX_BUTONS)", result);
 
   return result;
 }
@@ -1566,11 +1583,13 @@ void outputFormatSavvyCAN(ulong rxId, uint8_t len, uint8_t rxBuf[], uint8_t MCP2
     Serial.printf("Time Stamp,ID,Extended,Bus,LEN,D1,D2,D3,D4,D5,D6,D7,D8\n");
     headerFirstRun = true;
   }
-  if ((rxId & 0x80000000) == 0x80000000)          // Determine if ID is standard (11 bits) or extended (29 bits)
+  if ((rxId & 0x80000000) == 0x80000000) {         // Determine if ID is standard (11 bits) or extended (29 bits)
     Serial.printf("%.9lu,%.8lX,true,%1d,%1d", micros() - upTimer, (rxId & 0x1FFFFFFF), MCP2515number, len);
-  else
+  }
+  else {
     Serial.printf("%.9lu,%.3lX,false,%1d,%1d", micros() - upTimer, rxId, MCP2515number, len);
-
+  }
+  
   if ((rxId & 0x40000000) == 0x40000000) {    // Determine if message is a remote request frame.
     Serial.printf(" REMOTE REQUEST FRAME");
   }
@@ -1683,7 +1702,7 @@ void DisplayTestingData(ulong rxId, uint8_t len, uint8_t rxBuf[], uint8_t MCP251
 
   static unsigned long timerMillis = millis();
   static byte sendMessageCounter = 0;
-  
+
   // Control the Requests for Data sent on the CAN Bus to the vehicle
   // This will only send one "Request for Data" every x milliseconds
   // sendMessageCounter controls which message will be sent, upto 10 messages

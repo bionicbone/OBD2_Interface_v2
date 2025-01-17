@@ -509,6 +509,17 @@ void StartReadingCanBus() {
     break;
 
   case DISPLAY_TESTING_DATA:
+    // We probably want to send data so put into HS CAN into Normal Mode
+#if ALLOW_SENDING_DATA_TO_CAN_BUS == 1
+    warning = MessageBox("WARNING", "AKN, ERROR signals & Data Request Frames will be sent to the car. Use with caution. Do you want to continue ?", BTN_YES + BTN_NO);
+    if (warning == BTN_NO) {
+      return;
+    }
+    CANbusSetNormalMode(mcp2515_1);
+#else
+    MessageBox("INFORMATION", "Sending data is deactivated, send data requests will not be sent. See GitHub repository.", BTN_OK);
+#endif
+    
     TFT_Rectangle_ILI9341.setTextColor(TFT_GREEN);
     // Maximum of 10 Lines due to display size
     TFT_Rectangle_ILI9341.drawString("Battery Voltage:", 70, 20);
@@ -522,17 +533,6 @@ void StartReadingCanBus() {
     TFT_Rectangle_ILI9341.drawString("   Rear Torque:", 70, 180);
     TFT_Rectangle_ILI9341.drawString("  Module Deg C:", 70, 200);
     interfaceNumber = CANBOTH;
-    // We probably want to send data so put into HS CAN into Normal Mode
-    
-#if ALLOW_SENDING_DATA_TO_CAN_BUS == 1
-    warning = MessageBox("WARNING", "AKN, ERROR signals & Data Request Frames will be sent to the car. Use with caution. Do you want to continue ?", BTN_YES + BTN_NO);
-    if (warning == BTN_NO) {
-      return;
-    }
-    CANbusSetNormalMode(mcp2515_1);
-#else
-    MessageBox("INFORMATION", "Sending data is deactivated, send data requests will not be sent. See GitHub repository.", BTN_OK);
-#endif
     break;
 
   default:

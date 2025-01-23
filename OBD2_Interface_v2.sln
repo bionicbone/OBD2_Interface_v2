@@ -20,11 +20,9 @@ Global
 		Libraries\autowp-mcp2515\1.2.1\autowp-mcp2515\autowp-mcp2515-1.2.1.vcxitems*{23f85659-32ff-401c-afdb-f53167c8c6e7}*SharedItemsImports = 9
 		Libraries\SPIFFS\2.0.0\SPIFFS\SPIFFS-2.0.0.vcxitems*{85b9c761-3768-44e3-9682-9f4b52e70d03}*SharedItemsImports = 9
 		Libraries\FS\2.0.0\FS\FS-2.0.0.vcxitems*{c24e82e9-6c6b-4789-9b06-04d5b69d16e9}*SharedItemsImports = 9
-		Libraries\autowp-mcp2515\1.2.1\autowp-mcp2515\autowp-mcp2515-1.2.1.vcxitems*{c5f80730-f44f-4478-bdae-6634efc2ca88}*SharedItemsImports = 4
 		Libraries\FS\2.0.0\FS\FS-2.0.0.vcxitems*{c5f80730-f44f-4478-bdae-6634efc2ca88}*SharedItemsImports = 4
 		Libraries\SPIFFS\2.0.0\SPIFFS\SPIFFS-2.0.0.vcxitems*{c5f80730-f44f-4478-bdae-6634efc2ca88}*SharedItemsImports = 4
 		Libraries\SPI\2.0.0\SPI\SPI-2.0.0.vcxitems*{c5f80730-f44f-4478-bdae-6634efc2ca88}*SharedItemsImports = 4
-		Libraries\TFT_eSPI\2.5.43\TFT_eSPI\TFT_eSPI-2.5.43.vcxitems*{c5f80730-f44f-4478-bdae-6634efc2ca88}*SharedItemsImports = 4
 		Libraries\SPI\2.0.0\SPI\SPI-2.0.0.vcxitems*{d3f5b69c-0d45-4a67-aea4-1e91d0388694}*SharedItemsImports = 9
 		Libraries\TFT_eSPI\2.5.43\TFT_eSPI\TFT_eSPI-2.5.43.vcxitems*{ffc92cd3-ba2d-4bf8-8498-e9813601ee5b}*SharedItemsImports = 9
 	EndGlobalSection

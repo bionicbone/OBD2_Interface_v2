@@ -569,7 +569,7 @@ void StartReadingCanBus() {
     // and the buffers fill significantly more quickly
     if (CANBusCheckRecieved(mcp2515_1) && ((interfaceNumber & CAN1) || (interfaceNumber & CANBOTH))) {
       // Check for overflow errors, and clear them if necessary.
-      if (CANBusOverFlowError(mcp2515_1)) Can1OverflowErrors++;
+      //if (CANBusOverFlowError(mcp2515_1)) Can1OverflowErrors++;
       if (CANBusReadCANData(mcp2515_1)) {
         debugLoop("mcp2515_1 read");
         CANFrameProcessing(1);
@@ -578,7 +578,7 @@ void StartReadingCanBus() {
     // only check the 125kbps if there any no 500kbps messages in the MCP2515 buffers
     else if (CANBusCheckRecieved(mcp2515_2) && ((interfaceNumber & CAN2) || (interfaceNumber & CANBOTH))) {
       // Check for overflow errors, and clear them if necessary.
-      if (CANBusOverFlowError(mcp2515_2)) Can2OverflowErrors++;
+      //if (CANBusOverFlowError(mcp2515_2)) Can2OverflowErrors++;
       if (CANBusReadCANData(mcp2515_2)) {
         debugLoop("mcp2515_2 read");
         CANFrameProcessing(2);
@@ -588,7 +588,7 @@ void StartReadingCanBus() {
     //// Check the 125kbps bus as priority over 500kbps because 125kbps is slower so it is much quicker to clear the buffer
     //if (CANBusCheckRecieved(mcp2515_2) && ((interfaceNumber & CAN2) || (interfaceNumber & CANBOTH))) {
     //  // Check for overflow errors, and clear them if necessary.
-    //  if (CANBusOverFlowError(mcp2515_2)) Can2OverflowErrors++;
+    //  //if (CANBusOverFlowError(mcp2515_2)) Can2OverflowErrors++;
     //  if (CANBusReadCANData(mcp2515_2)) {
     //    debugLoop("mcp2515_2 read");
     //    CANFrameProcessing(2);
@@ -597,7 +597,7 @@ void StartReadingCanBus() {
     //// only check the 500kbps if there any no 125kbps messages in the MCP2515 buffers
     //else if (CANBusCheckRecieved(mcp2515_1) && ((interfaceNumber & CAN1) || (interfaceNumber & CANBOTH))) {
     //  // Check for overflow errors, and clear them if necessary.
-    //  if (CANBusOverFlowError(mcp2515_1)) Can1OverflowErrors++;
+    //  //if (CANBusOverFlowError(mcp2515_1)) Can1OverflowErrors++;
     //  if (CANBusReadCANData(mcp2515_1)) {
     //    debugLoop("mcp2515_1 read");
     //    CANFrameProcessing(1);

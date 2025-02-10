@@ -548,9 +548,16 @@ void StartReadingCanBus() {
   uint32_t Can2OverflowErrors = 0;
 
   // Ensure the OverFlow Errors are cleared before we start
+  // NOTE: Also clears the Rx Buffers
   CANBusOverFlowError(mcp2515_1);
   CANBusOverFlowError(mcp2515_2);
-
+  
+  // Ensure the Rx Buffers are empty before starting the read
+  // NOTE: While not outputing the MCP2515's are still connected to the Bus and thus received data which is buffered.
+  // NOTE: Code is not required if the OverFlow Errors are cleared, but if it removed there would be a problem.
+  CANBusClearRXBuffers(mcp2515_1);
+  CANBusClearRXBuffers(mcp2515_2);
+  
   while (true) {
     // Check the stop button
     if (digitalRead(STOP_BUTTON_PIN) == LOW) { 
@@ -813,6 +820,15 @@ bool CANBusOverFlowError(MCP2515 CANBusModule) {
     ret = true;
   }
   return ret;
+}
+
+
+// Clear Rx Buffers
+void CANBusClearRXBuffers(MCP2515 CANBusModule) {
+  // for simplicity and for MCP2515 library compatibility just blatantly read the buffers and drop the data
+  while (CANBusCheckRecieved(CANBusModule)) {
+    CANBusReadCANData(CANBusModule);
+  }
 }
 
 
